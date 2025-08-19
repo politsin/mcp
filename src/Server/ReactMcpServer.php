@@ -22,6 +22,9 @@ final class ReactMcpServer {
    */
   private McpConfig $config;
 
+  /** @var \React\Http\HttpServer|null */
+  private ?HttpServer $server = NULL;
+
   public function __construct(McpConfig $config) {
     $this->config = $config;
   }
@@ -37,9 +40,22 @@ final class ReactMcpServer {
    *   Путь к UNIX‑сокету, либо NULL, чтобы не слушать сокет.
    */
   public function run(string $host = '0.0.0.0', int $port = 8088, ?string $unixSocketPath = '/var/run/php/mcp-react.sock'): void {
-    $base = rtrim($this->config->basePath, '/');
+    // Совместимость: старый метод запускает оба слушателя.
+    $this->listenTcp($host, $port);
+    if (is_string($unixSocketPath) && $unixSocketPath !== '') {
+      $this->listenUnixSocket($unixSocketPath);
+    }
+  }
 
-    $server = new HttpServer(function ($request) use ($base) {
+  /**
+   * Возвращает (или создаёт) HttpServer с основным обработчиком MCP.
+   */
+  private function getServer(): HttpServer {
+    if ($this->server instanceof HttpServer) {
+      return $this->server;
+    }
+    $base = rtrim($this->config->basePath, '/');
+    $this->server = new HttpServer(function ($request) use ($base) {
         $method = $request->getMethod();
         $path = $request->getUri()->getPath();
 
@@ -75,21 +91,39 @@ final class ReactMcpServer {
 
               return ReactResponse::json(['error' => 'not_found'], 404);
     });
+    return $this->server;
+  }
 
+  /**
+   * Слушать TCP адрес.
+   */
+  public function listenTcp(string $host, int $port): void {
+    $server = $this->getServer();
     $tcpAddress = $host . ':' . $port;
     $socketTcp = new SocketServer($tcpAddress);
     $server->listen($socketTcp);
-    // Сообщаем, что слушаем TCP.
     echo "[MCP] Listening TCP on http://{$tcpAddress}\n";
+  }
 
-    if (is_string($unixSocketPath) && $unixSocketPath !== '') {
-      // Префикс unix:/// обязателен для React Socket.
-      $unixAddress = str_starts_with($unixSocketPath, 'unix://') ? $unixSocketPath : ('unix://' . $unixSocketPath);
-      $socketUnix = new SocketServer($unixAddress);
-      $server->listen($socketUnix);
-      // Сообщаем, что слушаем UNIX-сокет.
-      echo "[MCP] Listening UNIX socket on {$unixAddress}\n";
+  /**
+   * Слушать UNIX-сокет.
+   */
+  public function listenUnixSocket(string $unixSocketPath): void {
+    if ($unixSocketPath === '') {
+      return;
     }
+    $server = $this->getServer();
+    $dir = dirname($unixSocketPath);
+    if (!is_dir($dir)) {
+      @mkdir($dir, 0777, TRUE);
+    }
+    if (file_exists($unixSocketPath)) {
+      @unlink($unixSocketPath);
+    }
+    $unixAddress = str_starts_with($unixSocketPath, 'unix://') ? $unixSocketPath : ('unix://' . $unixSocketPath);
+    $socketUnix = new SocketServer($unixAddress);
+    $server->listen($socketUnix);
+    echo "[MCP] Listening UNIX socket on {$unixAddress}\n";
   }
 
 }
