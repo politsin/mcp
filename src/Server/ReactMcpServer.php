@@ -130,15 +130,21 @@ final class ReactMcpServer {
                 'serverInfo' => ['name' => 'Politsin MCP Server', 'version' => '1.0.0'],
                 'capabilities' => ['tools' => new \stdClass(), 'prompts' => new \stdClass(), 'resources' => new \stdClass()],
                 'session' => ['id' => 'simple-mcp-session'],
-                'endpoints' => ['messages' => 'sse', 'requests' => 'http'],
+                'endpoints' => ['messages' => 'sse', 'requests' => 'mcp/requests'],
               ],
             ];
             $body = json_encode($result, JSON_UNESCAPED_UNICODE) . "\n";
             return new ReactResponse(200, ['Content-Type' => 'application/x-ndjson; charset=utf-8'], $body);
           }
-        }
+
+          // ping — проверка связи.
+          if ($rpcMethod === 'ping') {
+            $resp = ['jsonrpc' => '2.0', 'id' => $id, 'result' => new \stdClass()];
+            return new ReactResponse(200, ['Content-Type' => 'application/x-ndjson; charset=utf-8'], json_encode($resp, JSON_UNESCAPED_UNICODE) . "\n");
+          }
+
           // tools/list — перечислить доступные тулзы из конфигурации.
-        if ($rpcMethod === 'tools/list') {
+          if ($rpcMethod === 'tools/list') {
           $toolsOut = [];
           foreach (array_keys($this->config->tools) as $toolName) {
             $toolsOut[] = [
@@ -154,10 +160,10 @@ final class ReactMcpServer {
           }
           $resp = ['jsonrpc' => '2.0', 'id' => $id, 'result' => ['tools' => $toolsOut]];
           return new ReactResponse(200, ['Content-Type' => 'application/x-ndjson; charset=utf-8'], json_encode($resp, JSON_UNESCAPED_UNICODE) . "\n");
-        }
+          }
 
           // tools/call — вызвать зарегистрированный тул.
-        if ($rpcMethod === 'tools/call') {
+          if ($rpcMethod === 'tools/call') {
           $paramsIn = isset($payload['params']) && is_array($payload['params']) ? $payload['params'] : [];
           $name = (string) ($paramsIn['name'] ?? ($paramsIn['tool'] ?? ''));
           $arguments = isset($paramsIn['arguments']) && is_array($paramsIn['arguments']) ? $paramsIn['arguments'] : [];
@@ -186,7 +192,7 @@ final class ReactMcpServer {
         }
 
           // resources/list — список доступных ресурсов.
-        if ($rpcMethod === 'resources/list') {
+          if ($rpcMethod === 'resources/list') {
           $resourcesOut = [];
           foreach ($this->config->resources as $key => $value) {
             $isStructured = is_array($value) || is_object($value);
@@ -202,7 +208,7 @@ final class ReactMcpServer {
         }
 
           // resources/read — чтение контента ресурса по uri.
-        if ($rpcMethod === 'resources/read') {
+          if ($rpcMethod === 'resources/read') {
           $paramsIn = isset($payload['params']) && is_array($payload['params']) ? $payload['params'] : [];
           $uri = (string) ($paramsIn['uri'] ?? '');
           if ($uri === '' || !array_key_exists($uri, $this->config->resources)) {
@@ -219,6 +225,7 @@ final class ReactMcpServer {
 
         // По умолчанию: пустая строка NDJSON.
         return new ReactResponse(200, ['Content-Type' => 'application/x-ndjson; charset=utf-8'], "\n");
+        }
       }
 
       // /mcp/http — потоковый HTTP (NDJSON).
@@ -270,7 +277,7 @@ final class ReactMcpServer {
     if ($this->config->logLevel === 'debug') {
       $this->write('[RESP] 404 not_found');
     }
-              return ReactResponse::json(['error' => 'not_found'], 404);
+    return ReactResponse::json(['error' => 'not_found'], 404);
   });
 
   return $this->server;
