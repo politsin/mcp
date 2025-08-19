@@ -82,6 +82,17 @@ final class ReactMcpServer {
         $this->write(sprintf('[REQ] ip=%s ua=%s %s %s', $clientIp, $ua, $method, $path));
       }
 
+        // /mcp — JSON манифест (совместимость клиентов).
+      if ($method === 'GET' && $path === $base) {
+        $manifest = [
+          'protocolVersion' => '2024-11-05',
+          'serverInfo' => ['name' => 'Politsin MCP Server', 'version' => '1.0.0'],
+          'capabilities' => ['tools' => new \stdClass(), 'prompts' => new \stdClass(), 'resources' => new \stdClass()],
+          'endpoints' => ['messages' => 'sse', 'requests' => 'http'],
+        ];
+        return ReactResponse::json($manifest);
+      }
+
         // /mcp/api — обычные GET‑запросы, возвращаем JSON с query‑параметрами.
       if ($method === 'GET' && $path === $base . '/api') {
         $query = $request->getUri()->getQuery();
@@ -125,6 +136,86 @@ final class ReactMcpServer {
             $body = json_encode($result, JSON_UNESCAPED_UNICODE) . "\n";
             return new ReactResponse(200, ['Content-Type' => 'application/x-ndjson; charset=utf-8'], $body);
           }
+        }
+          // tools/list — перечислить доступные тулзы из конфигурации.
+          if ($rpcMethod === 'tools/list') {
+            $toolsOut = [];
+            foreach (array_keys($this->config->tools) as $toolName) {
+              $toolsOut[] = [
+                'name' => $toolName,
+                'description' => 'Tool ' . $toolName,
+                'inputSchema' => [
+                  'type' => 'object',
+                  'properties' => [],
+                  'required' => [],
+                  'additionalProperties' => FALSE,
+                ],
+              ];
+            }
+            $resp = ['jsonrpc' => '2.0', 'id' => $id, 'result' => ['tools' => $toolsOut]];
+            return new ReactResponse(200, ['Content-Type' => 'application/x-ndjson; charset=utf-8'], json_encode($resp, JSON_UNESCAPED_UNICODE) . "\n");
+          }
+
+          // tools/call — вызвать зарегистрированный тул.
+          if ($rpcMethod === 'tools/call') {
+            $paramsIn = isset($payload['params']) && is_array($payload['params']) ? $payload['params'] : [];
+            $name = (string) ($paramsIn['name'] ?? ($paramsIn['tool'] ?? ''));
+            $arguments = isset($paramsIn['arguments']) && is_array($paramsIn['arguments']) ? $paramsIn['arguments'] : [];
+            if ($name === '' || !isset($this->config->tools[$name])) {
+              $err = ['jsonrpc' => '2.0', 'id' => $id, 'error' => ['code' => -32602, 'message' => 'Unknown tool: ' . $name]];
+              return new ReactResponse(200, ['Content-Type' => 'application/x-ndjson; charset=utf-8'], json_encode($err, JSON_UNESCAPED_UNICODE) . "\n");
+            }
+            try {
+              $callable = $this->config->tools[$name];
+              $resultVal = empty($arguments) ? $callable() : $callable($arguments);
+              $resultJson = json_encode($resultVal, JSON_UNESCAPED_UNICODE | JSON_PRETTY_PRINT);
+              $resp = [
+                'jsonrpc' => '2.0',
+                'id' => $id,
+                'result' => [
+                  'content' => [ [ 'type' => 'text', 'text' => $resultJson ] ],
+                  'isError' => FALSE,
+                ],
+              ];
+              return new ReactResponse(200, ['Content-Type' => 'application/x-ndjson; charset=utf-8'], json_encode($resp, JSON_UNESCAPED_UNICODE) . "\n");
+            } catch (\Throwable $e) {
+              $err = ['jsonrpc' => '2.0', 'id' => $id, 'error' => ['code' => -32000, 'message' => $e->getMessage()]];
+              return new ReactResponse(200, ['Content-Type' => 'application/x-ndjson; charset=utf-8'], json_encode($err, JSON_UNESCAPED_UNICODE) . "\n");
+            }
+          }
+
+          // resources/list — список доступных ресурсов.
+          if ($rpcMethod === 'resources/list') {
+            $resourcesOut = [];
+            foreach ($this->config->resources as $key => $value) {
+              $isStructured = is_array($value) || is_object($value);
+              $resourcesOut[] = [
+                'uri' => (string) $key,
+                'name' => $key === 'hello_world' ? 'Hello World' : ('Resource ' . (string) $key),
+                'description' => $key === 'random_numbers' ? 'Array of 5 random ints' : 'Sample resource',
+                'mimeType' => $isStructured ? 'application/json' : 'text/plain',
+              ];
+            }
+            $resp = ['jsonrpc' => '2.0', 'id' => $id, 'result' => ['resources' => $resourcesOut]];
+            return new ReactResponse(200, ['Content-Type' => 'application/x-ndjson; charset=utf-8'], json_encode($resp, JSON_UNESCAPED_UNICODE) . "\n");
+          }
+
+          // resources/read — чтение контента ресурса по uri.
+          if ($rpcMethod === 'resources/read') {
+            $paramsIn = isset($payload['params']) && is_array($payload['params']) ? $payload['params'] : [];
+            $uri = (string) ($paramsIn['uri'] ?? '');
+            if ($uri === '' || !array_key_exists($uri, $this->config->resources)) {
+              $err = ['jsonrpc' => '2.0', 'id' => $id, 'error' => ['code' => -32004, 'message' => 'Resource not found: ' . $uri]];
+              return new ReactResponse(200, ['Content-Type' => 'application/x-ndjson; charset=utf-8'], json_encode($err, JSON_UNESCAPED_UNICODE) . "\n");
+            }
+            $val = $this->config->resources[$uri];
+            $isStructured = is_array($val) || is_object($val);
+            $mime = $isStructured ? 'application/json' : 'text/plain';
+            $text = $isStructured ? json_encode($val, JSON_UNESCAPED_UNICODE) : (string) $val;
+            $resp = ['jsonrpc' => '2.0', 'id' => $id, 'result' => [ 'contents' => [ [ 'uri' => $uri, 'mimeType' => $mime, 'text' => $text ] ] ] ];
+            return new ReactResponse(200, ['Content-Type' => 'application/x-ndjson; charset=utf-8'], json_encode($resp, JSON_UNESCAPED_UNICODE) . "\n");
+          }
+
         }
         // По умолчанию: пустая строка NDJSON.
         return new ReactResponse(200, ['Content-Type' => 'application/x-ndjson; charset=utf-8'], "\n");
