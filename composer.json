@@ -3,7 +3,12 @@
   "description": "PHP-библиотека для взаимодействия с MCP (Model Context Protocol)",
   "type": "library",
   "license": "MIT",
-  "keywords": ["mcp", "ai", "symfony", "php"],
+  "keywords": [
+    "mcp",
+    "ai",
+    "symfony",
+    "php"
+  ],
   "require": {
     "php": "^8.3"
   },
@@ -26,4 +31,10 @@
   },
   "minimum-stability": "stable",
   "prefer-stable": true
+  ,
+  "extra": {
+    "branch-alias": {
+      "dev-main": "0.1.x-dev"
+    }
+  }
 }
