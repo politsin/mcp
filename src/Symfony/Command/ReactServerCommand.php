@@ -20,6 +20,7 @@ final class ReactServerCommand extends Command
         $this->addOption('host', null, InputOption::VALUE_REQUIRED, 'Host to listen', '0.0.0.0');
         $this->addOption('port', null, InputOption::VALUE_REQUIRED, 'Port to listen', '8090');
         $this->addOption('base-path', null, InputOption::VALUE_REQUIRED, 'Base path', '/mcp');
+        $this->addOption('socket', null, InputOption::VALUE_REQUIRED, 'Unix socket path', '/var/run/php/mcp-react.sock');
     }
 
     protected function execute(InputInterface $input, OutputInterface $output): int
@@ -27,10 +28,11 @@ final class ReactServerCommand extends Command
         $host = (string) $input->getOption('host');
         $port = (int) $input->getOption('port');
         $basePath = (string) $input->getOption('base-path');
+        $socketPath = (string) $input->getOption('socket');
 
         $config = new McpConfig(array(), array(), NULL, $basePath);
         $server = new ReactMcpServer($config);
-        $server->run($host, $port);
+        $server->run($host, $port, $socketPath);
 
         $output->writeln('React MCP server started on ' . $host . ':' . $port . ' with base ' . $basePath);
         // Блокируем процесс.

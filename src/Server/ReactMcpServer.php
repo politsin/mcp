@@ -19,7 +19,7 @@ final class ReactMcpServer
         $this->config = $config;
     }
 
-    public function run(string $host = '0.0.0.0', int $port = 8088): void
+    public function run(string $host = '0.0.0.0', int $port = 8088, ?string $unixSocketPath = '/var/run/php/mcp-react.sock'): void
     {
         $base = rtrim($this->config->basePath, '/');
 
@@ -60,8 +60,15 @@ final class ReactMcpServer
             return ReactResponse::json(array('error' => 'not_found'), 404);
         });
 
-        $socket = new SocketServer($host . ':' . $port);
-        $server->listen($socket);
+        $socketTcp = new SocketServer($host . ':' . $port);
+        $server->listen($socketTcp);
+
+        if (is_string($unixSocketPath) && $unixSocketPath !== '') {
+            // Префикс unix:/// обязателен для React Socket.
+            $unixAddress = str_starts_with($unixSocketPath, 'unix://') ? $unixSocketPath : ('unix://' . $unixSocketPath);
+            $socketUnix = new SocketServer($unixAddress);
+            $server->listen($socketUnix);
+        }
     }
 }
 
