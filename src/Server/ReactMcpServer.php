@@ -105,7 +105,9 @@ final class ReactMcpServer {
             $stream->write("{\"type\":\"ping\",\"ts\":\"" . date('c') . "\"}\n");
           }
         });
-        $stream->on('close', function () use ($timer) { Loop::cancelTimer($timer); });
+        $stream->on('close', function () use ($timer) {
+          Loop::cancelTimer($timer);
+        });
         $headers = [
           'Content-Type' => 'application/x-ndjson; charset=utf-8',
           'Cache-Control' => 'no-cache',
