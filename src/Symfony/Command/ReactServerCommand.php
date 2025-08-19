@@ -30,7 +30,7 @@ final class ReactServerCommand extends Command
         $basePath = (string) $input->getOption('base-path');
         $socketPath = (string) $input->getOption('socket');
 
-        $config = new McpConfig(array(), array(), NULL, $basePath);
+        $config = new McpConfig([], [], NULL, $basePath);
         $server = new ReactMcpServer($config);
         $server->run($host, $port, $socketPath);
 

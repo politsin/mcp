@@ -32,14 +32,14 @@ final class ReactMcpServer
                 $raw = (string) $request->getBody();
                 $data = json_decode($raw, TRUE);
                 if (!is_array($data)) {
-                    return ReactResponse::json(array('error' => 'invalid_json'), 400);
+                    return ReactResponse::json(['error' => 'invalid_json'], 400);
                 }
-                return ReactResponse::json(array('ok' => TRUE, 'echo' => $data));
+                return ReactResponse::json(['ok' => TRUE, 'echo' => $data]);
             }
 
             // /mcp/http — вспомогательные HTTP запросы, пока отдаем 204.
             if ($path === $base . '/http') {
-                return new ReactResponse(204, array('X-MCP' => 'http'));
+                return new ReactResponse(204, ['X-MCP' => 'http']);
             }
 
             // /mcp/sse — простой SSE стрим (hello + пульс).
@@ -48,16 +48,16 @@ final class ReactMcpServer
                 Loop::futureTick(function () use ($stream) {
                     $stream->write("data: {\"type\":\"connected\",\"message\":\"MCP SSE\"}\n\n");
                 });
-                $headers = array(
+                $headers = [
                     'Content-Type' => 'text/event-stream',
                     'Cache-Control' => 'no-cache',
                     'Connection' => 'keep-alive',
                     'Access-Control-Allow-Origin' => '*',
-                );
+                ];
                 return new ReactResponse(200, $headers, $stream);
             }
 
-            return ReactResponse::json(array('error' => 'not_found'), 404);
+            return ReactResponse::json(['error' => 'not_found'], 404);
         });
 
         $socketTcp = new SocketServer($host . ':' . $port);

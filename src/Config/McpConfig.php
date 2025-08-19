@@ -22,7 +22,7 @@ final class McpConfig
      * @param array<string, mixed> $resources
      * @param callable|null $authCallback function(?array $request): bool
      */
-    public function __construct(array $tools = array(), array $resources = array(), ?callable $authCallback = NULL, string $basePath = '/mcp')
+    public function __construct(array $tools = [], array $resources = [], ?callable $authCallback = NULL, string $basePath = '/mcp')
     {
         $this->tools = $tools;
         $this->resources = $resources;
