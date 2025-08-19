@@ -22,7 +22,7 @@ final class TestPage {
   html, body { height: 100%; margin: 0; font-family: system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif; }
   body { display: flex; flex-direction: column; }
   header { padding: 12px 16px; border-bottom: 1px solid #e5e7eb; }
-  main { flex: 1; padding: 16px; display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; }
+  main { flex: 1; padding: 16px; display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
   #log { background: #0b1220; color: #d1e7ff; padding: 12px; border-radius: 8px; white-space: pre-wrap; word-break: break-word; max-height: 70vh; overflow: auto; }
   .muted { color: #94a3b8; }
   button { padding: 8px 12px; border: 1px solid #cbd5e1; border-radius: 6px; background: #fff; cursor: pointer; }
@@ -50,36 +50,40 @@ final class TestPage {
     </div>
   </header>
   <main>
-    <div class="card">
-      <div class="section-title">HTTP Stream (NDJSON)</div>
-      <div class="row mt8"><input id="httpUrl" class="mono" type="text" value="$base/http" /></div>
-      <div class="btns mt8"><button id="httpConnect">Подключиться</button><button id="httpDisconnect">Отключиться</button></div>
-      <div class="hint mt8">GET поток <span class="mono">application/x-ndjson</span>.</div>
+    <div class="grid-col">
+      <div class="card">
+        <div class="section-title">HTTP Stream (NDJSON)</div>
+        <div class="row mt8"><input id="httpUrl" class="mono" type="text" value="$base/http" /></div>
+        <div class="btns mt8"><button id="httpConnect">Подключиться</button><button id="httpDisconnect">Отключиться</button></div>
+        <div class="hint mt8">GET поток <span class="mono">application/x-ndjson</span>.</div>
+      </div>
+      <div class="card">
+        <div class="section-title">SSE</div>
+        <div class="row mt8"><input id="sseUrl" class="mono" type="text" value="$base/sse" /></div>
+        <div class="btns mt8"><button id="sseConnect">Подключиться</button><button id="sseDisconnect">Отключиться</button></div>
+        <div class="hint mt8">Подписка через <span class="mono">EventSource</span> на <span class="mono">text/event-stream</span>.</div>
+      </div>
+      <div class="card">
+        <div class="section-title">MCP API (GET)</div>
+        <div class="row mt8"><input id="apiUrl" class="mono" type="text" value="$base/api?hello=world" /></div>
+        <div class="btns mt8"><button id="apiSend">GET</button></div>
+        <div class="hint mt8">GET JSON на MCP API endpoint.</div>
+      </div>
     </div>
     <div class="card">
-      <div class="section-title">SSE</div>
-      <div class="row mt8"><input id="sseUrl" class="mono" type="text" value="$base/sse" /></div>
-      <div class="btns mt8"><button id="sseConnect">Подключиться</button><button id="sseDisconnect">Отключиться</button></div>
-      <div class="hint mt8">Подписка через <span class="mono">EventSource</span> на <span class="mono">text/event-stream</span>.</div>
-    </div>
-    <div class="card">
-      <div class="section-title">MCP API (GET)</div>
-      <div class="row mt8"><input id="apiUrl" class="mono" type="text" value="$base/api?hello=world" /></div>
-      <div class="btns mt8"><button id="apiSend">GET</button></div>
-      <div class="hint mt8">GET JSON на MCP API endpoint.</div>
-    </div>
-    <div class="card" style="grid-column: 1 / -1;">
       <div class="section-title">Лог</div>
-      <pre id="log" class="mono"></pre>
+      <pre id="log" class="mono" style="height: 70vh;"></pre>
     </div>
   </main>
   <script>
     const logEl = document.getElementById('log');
     function logLine(kind, ...args) {
       const line = '[' + new Date().toISOString() + '] ' + kind + ' ' + args.join(' ');
-      console.log(line);
-      logEl.textContent += line + '\n';
-      logEl.scrollTop = logEl.scrollHeight;
+      try { console.log(line); } catch(e) {}
+      try {
+        logEl.textContent += line + '\n';
+        logEl.scrollTop = logEl.scrollHeight;
+      } catch(e) {}
     }
 
     // HTTP stream (NDJSON)
