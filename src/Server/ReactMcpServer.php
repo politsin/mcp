@@ -76,14 +76,19 @@ final class ReactMcpServer {
               return ReactResponse::json(['error' => 'not_found'], 404);
     });
 
-    $socketTcp = new SocketServer($host . ':' . $port);
+    $tcpAddress = $host . ':' . $port;
+    $socketTcp = new SocketServer($tcpAddress);
     $server->listen($socketTcp);
+    // Сообщаем, что слушаем TCP.
+    echo "[MCP] Listening TCP on http://{$tcpAddress}\n";
 
     if (is_string($unixSocketPath) && $unixSocketPath !== '') {
       // Префикс unix:/// обязателен для React Socket.
       $unixAddress = str_starts_with($unixSocketPath, 'unix://') ? $unixSocketPath : ('unix://' . $unixSocketPath);
       $socketUnix = new SocketServer($unixAddress);
       $server->listen($socketUnix);
+      // Сообщаем, что слушаем UNIX-сокет.
+      echo "[MCP] Listening UNIX socket on {$unixAddress}\n";
     }
   }
 
