@@ -79,19 +79,43 @@ final class ReactMcpServer {
         $this->write(sprintf('[REQ] %s %s', $method, $path));
       }
 
-        // /mcp/api — JSON RPC совместимый endpoint (минимум echo для MVP).
-      if ($method === 'POST' && $path === $base . '/api') {
-            $raw = (string) $request->getBody();
-            $data = json_decode($raw, TRUE);
-        if (!is_array($data)) {
-          return ReactResponse::json(['error' => 'invalid_json'], 400);
+        // /mcp/api — обычные GET‑запросы, возвращаем JSON с query‑параметрами.
+      if ($method === 'GET' && $path === $base . '/api') {
+        $query = $request->getUri()->getQuery();
+        $params = [];
+        if ($query !== '') {
+          parse_str($query, $params);
         }
-              return ReactResponse::json(['ok' => TRUE, 'echo' => $data]);
+        if ($this->config->logLevel === 'debug') {
+          $this->write('[API] GET params=' . json_encode($params));
+        }
+        return ReactResponse::json(['ok' => TRUE, 'query' => $params]);
       }
 
-        // /mcp/http — вспомогательные HTTP запросы, пока отдаем 204.
+        // /mcp/http — потоковый HTTP (NDJSON).
       if ($path === $base . '/http') {
-              return new ReactResponse(204, ['X-MCP' => 'http']);
+        $stream = new ThroughStream();
+        // Начальный фрейм.
+        Loop::futureTick(function () use ($stream) {
+          $stream->write("{\"type\":\"open\",\"ts\":\"" . date('c') . "\"}\n");
+        });
+        // Периодические пинги.
+        $timer = Loop::addPeriodicTimer(10.0, function () use ($stream) {
+          if (method_exists($stream, 'isWritable') && $stream->isWritable()) {
+            $stream->write("{\"type\":\"ping\",\"ts\":\"" . date('c') . "\"}\n");
+          }
+        });
+        $stream->on('close', function () use ($timer) { Loop::cancelTimer($timer); });
+        $headers = [
+          'Content-Type' => 'application/x-ndjson; charset=utf-8',
+          'Cache-Control' => 'no-cache',
+          'Connection' => 'keep-alive',
+          'Access-Control-Allow-Origin' => '*',
+        ];
+        if ($this->config->logLevel === 'debug') {
+          $this->write('[HTTP] stream opened');
+        }
+        return new ReactResponse(200, $headers, $stream);
       }
 
               // /mcp/sse — простой SSE стрим (hello + пульс).

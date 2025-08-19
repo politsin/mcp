@@ -4,7 +4,11 @@ declare(strict_types=1);
 
 namespace Politsin\Mcp\Http;
 
+/**
+ *
+ */
 final class TestPage {
+
   /**
    * Возвращает HTML-страницу теста SSE/MCP для браузера.
    */
@@ -57,11 +61,10 @@ final class TestPage {
         <div class="hint mt8">Подписка через EventSource на <span class="mono">text/event-stream</span>.</div>
       </div>
       <div class="card">
-        <div class="section-title">MCP</div>
-        <div class="row mt8"><input id="mcpUrl" class="mono" type="text" value="$base/api" /></div>
-        <textarea id="mcpPayload" class="mono mt8" rows="10">{ "jsonrpc": "2.0", "id": 1, "method": "tools/list", "params": {} }</textarea>
-        <div class="btns mt8"><button id="mcpSend">Отправить</button><button id="mcpPing">Ping</button></div>
-        <div class="hint mt8">POST JSON на MCP HTTP endpoint.</div>
+        <div class="section-title">MCP API (GET)</div>
+        <div class="row mt8"><input id="mcpUrl" class="mono" type="text" value="$base/api?hello=world" /></div>
+        <div class="btns mt8"><button id="mcpSend">GET</button></div>
+        <div class="hint mt8">GET JSON на MCP API endpoint.</div>
       </div>
     </div>
     <div class="card">
@@ -102,21 +105,16 @@ final class TestPage {
     document.getElementById('sseConnect').addEventListener('click', sseConnect);
     document.getElementById('sseDisconnect').addEventListener('click', sseDisconnect);
 
-    async function mcpSend(payload) {
+    async function mcpSend() {
       const url = mcpUrlEl.value || '$base/api';
       try {
-        const body = typeof payload === 'string' ? payload : JSON.stringify(payload);
-        logLine('POST', url, body.slice(0, 200));
-        const res = await fetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body });
+        logLine('GET', url);
+        const res = await fetch(url, { method: 'GET' });
         const text = await res.text();
         logLine('RES', res.status + ':', text.slice(0, 1000));
       } catch (e) { logLine('err', String(e)); }
     }
-    document.getElementById('mcpSend').addEventListener('click', () => {
-      const raw = document.getElementById('mcpPayload').value || '{}';
-      mcpSend(raw);
-    });
-    document.getElementById('mcpPing').addEventListener('click', () => mcpSend({ jsonrpc: '2.0', id: 1, method: 'ping', params: {} }));
+    document.getElementById('mcpSend').addEventListener('click', () => mcpSend());
 
     // Старт: если включён MCP mode — ничего не делаем автоматически; иначе автоподключение к SSE.
     if (!modeEl.checked) { sseConnect(); }
@@ -124,6 +122,5 @@ final class TestPage {
 HTML;
     return $html;
   }
+
 }
-
-
