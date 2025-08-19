@@ -12,12 +12,12 @@
   },
   "autoload": {
     "psr-4": {
-      "Politsin\Mcp\": "src/"
+      "Politsin\\Mcp\\": "src/"
     }
   },
   "autoload-dev": {
     "psr-4": {
-      "Politsin\Mcp\Tests\": "tests/"
+      "Politsin\\Mcp\\Tests\\": "tests/"
     }
   },
   "support": {
