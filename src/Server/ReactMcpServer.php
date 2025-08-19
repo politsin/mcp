@@ -85,10 +85,10 @@ final class ReactMcpServer {
         // /mcp — JSON манифест (совместимость клиентов).
       if ($method === 'GET' && $path === $base) {
         $manifest = [
-          'protocolVersion' => '2024-11-05',
+          'protocolVersion' => '2025-06-18',
           'serverInfo' => ['name' => 'Politsin MCP Server', 'version' => '1.0.0'],
-          'capabilities' => ['tools' => new \stdClass(), 'prompts' => new \stdClass(), 'resources' => new \stdClass()],
-          'endpoints' => ['messages' => 'sse', 'requests' => 'http'],
+          'capabilities' => ['tools' => [], 'prompts' => [], 'resources' => []],
+          'endpoints' => ['messages' => 'sse', 'requests' => 'mcp/requests'],
         ];
         return ReactResponse::json($manifest);
       }
@@ -137,7 +137,7 @@ final class ReactMcpServer {
             return new ReactResponse(200, ['Content-Type' => 'application/x-ndjson; charset=utf-8'], $body);
           }
 
-          // ping — проверка связи.
+          // Ping — проверка связи.
           if ($rpcMethod === 'ping') {
             $resp = ['jsonrpc' => '2.0', 'id' => $id, 'result' => new \stdClass()];
             return new ReactResponse(200, ['Content-Type' => 'application/x-ndjson; charset=utf-8'], json_encode($resp, JSON_UNESCAPED_UNICODE) . "\n");
@@ -145,212 +145,321 @@ final class ReactMcpServer {
 
           // tools/list — перечислить доступные тулзы из конфигурации.
           if ($rpcMethod === 'tools/list') {
-          $toolsOut = [];
-          foreach (array_keys($this->config->tools) as $toolName) {
-            $toolsOut[] = [
-              'name' => $toolName,
-              'description' => 'Tool ' . $toolName,
-              'inputSchema' => [
-                'type' => 'object',
-                'properties' => [],
-                'required' => [],
-                'additionalProperties' => FALSE,
-              ],
-            ];
-          }
-          $resp = ['jsonrpc' => '2.0', 'id' => $id, 'result' => ['tools' => $toolsOut]];
-          return new ReactResponse(200, ['Content-Type' => 'application/x-ndjson; charset=utf-8'], json_encode($resp, JSON_UNESCAPED_UNICODE) . "\n");
+            $toolsOut = [];
+            foreach (array_keys($this->config->tools) as $toolName) {
+              $toolsOut[] = [
+                'name' => $toolName,
+                'description' => 'Tool ' . $toolName,
+                'inputSchema' => [
+                  'type' => 'object',
+                  'properties' => [],
+                  'required' => [],
+                  'additionalProperties' => FALSE,
+                ],
+              ];
+            }
+            $resp = ['jsonrpc' => '2.0', 'id' => $id, 'result' => ['tools' => $toolsOut]];
+            return new ReactResponse(200, ['Content-Type' => 'application/x-ndjson; charset=utf-8'], json_encode($resp, JSON_UNESCAPED_UNICODE) . "\n");
           }
 
           // tools/call — вызвать зарегистрированный тул.
           if ($rpcMethod === 'tools/call') {
-          $paramsIn = isset($payload['params']) && is_array($payload['params']) ? $payload['params'] : [];
-          $name = (string) ($paramsIn['name'] ?? ($paramsIn['tool'] ?? ''));
-          $arguments = isset($paramsIn['arguments']) && is_array($paramsIn['arguments']) ? $paramsIn['arguments'] : [];
-          if ($name === '' || !isset($this->config->tools[$name])) {
-            $err = ['jsonrpc' => '2.0', 'id' => $id, 'error' => ['code' => -32602, 'message' => 'Unknown tool: ' . $name]];
-            return new ReactResponse(200, ['Content-Type' => 'application/x-ndjson; charset=utf-8'], json_encode($err, JSON_UNESCAPED_UNICODE) . "\n");
+            $paramsIn = isset($payload['params']) && is_array($payload['params']) ? $payload['params'] : [];
+            $name = (string) ($paramsIn['name'] ?? ($paramsIn['tool'] ?? ''));
+            $arguments = isset($paramsIn['arguments']) && is_array($paramsIn['arguments']) ? $paramsIn['arguments'] : [];
+            if ($name === '' || !isset($this->config->tools[$name])) {
+              $err = ['jsonrpc' => '2.0', 'id' => $id, 'error' => ['code' => -32602, 'message' => 'Unknown tool: ' . $name]];
+              return new ReactResponse(200, ['Content-Type' => 'application/x-ndjson; charset=utf-8'], json_encode($err, JSON_UNESCAPED_UNICODE) . "\n");
+            }
+            try {
+              $callable = $this->config->tools[$name];
+              $resultVal = empty($arguments) ? $callable() : $callable($arguments);
+              $resultJson = json_encode($resultVal, JSON_UNESCAPED_UNICODE | JSON_PRETTY_PRINT);
+              $resp = [
+                'jsonrpc' => '2.0',
+                'id' => $id,
+                'result' => [
+                  'content' => [['type' => 'text', 'text' => $resultJson]],
+                  'isError' => FALSE,
+                ],
+              ];
+              return new ReactResponse(200, ['Content-Type' => 'application/x-ndjson; charset=utf-8'], json_encode($resp, JSON_UNESCAPED_UNICODE) . "\n");
+            }
+            catch (\Throwable $e) {
+              $err = ['jsonrpc' => '2.0', 'id' => $id, 'error' => ['code' => -32000, 'message' => $e->getMessage()]];
+              return new ReactResponse(200, ['Content-Type' => 'application/x-ndjson; charset=utf-8'], json_encode($err, JSON_UNESCAPED_UNICODE) . "\n");
+            }
           }
-          try {
-            $callable = $this->config->tools[$name];
-            $resultVal = empty($arguments) ? $callable() : $callable($arguments);
-            $resultJson = json_encode($resultVal, JSON_UNESCAPED_UNICODE | JSON_PRETTY_PRINT);
-            $resp = [
-              'jsonrpc' => '2.0',
-              'id' => $id,
-              'result' => [
-                'content' => [['type' => 'text', 'text' => $resultJson]],
-                'isError' => FALSE,
-              ],
-            ];
-            return new ReactResponse(200, ['Content-Type' => 'application/x-ndjson; charset=utf-8'], json_encode($resp, JSON_UNESCAPED_UNICODE) . "\n");
-          }
-          catch (\Throwable $e) {
-            $err = ['jsonrpc' => '2.0', 'id' => $id, 'error' => ['code' => -32000, 'message' => $e->getMessage()]];
-            return new ReactResponse(200, ['Content-Type' => 'application/x-ndjson; charset=utf-8'], json_encode($err, JSON_UNESCAPED_UNICODE) . "\n");
-          }
-        }
 
           // resources/list — список доступных ресурсов.
           if ($rpcMethod === 'resources/list') {
-          $resourcesOut = [];
-          foreach ($this->config->resources as $key => $value) {
-            $isStructured = is_array($value) || is_object($value);
-            $resourcesOut[] = [
-              'uri' => (string) $key,
-              'name' => $key === 'hello_world' ? 'Hello World' : ('Resource ' . (string) $key),
-              'description' => $key === 'random_numbers' ? 'Array of 5 random ints' : 'Sample resource',
-              'mimeType' => $isStructured ? 'application/json' : 'text/plain',
-            ];
+            $resourcesOut = [];
+            foreach ($this->config->resources as $key => $value) {
+              $isStructured = is_array($value) || is_object($value);
+              $resourcesOut[] = [
+                'uri' => (string) $key,
+                'name' => $key === 'hello_world' ? 'Hello World' : ('Resource ' . (string) $key),
+                'description' => $key === 'random_numbers' ? 'Array of 5 random ints' : 'Sample resource',
+                'mimeType' => $isStructured ? 'application/json' : 'text/plain',
+              ];
+            }
+            $resp = ['jsonrpc' => '2.0', 'id' => $id, 'result' => ['resources' => $resourcesOut]];
+            return new ReactResponse(200, ['Content-Type' => 'application/x-ndjson; charset=utf-8'], json_encode($resp, JSON_UNESCAPED_UNICODE) . "\n");
           }
-          $resp = ['jsonrpc' => '2.0', 'id' => $id, 'result' => ['resources' => $resourcesOut]];
-          return new ReactResponse(200, ['Content-Type' => 'application/x-ndjson; charset=utf-8'], json_encode($resp, JSON_UNESCAPED_UNICODE) . "\n");
-        }
 
           // resources/read — чтение контента ресурса по uri.
           if ($rpcMethod === 'resources/read') {
-          $paramsIn = isset($payload['params']) && is_array($payload['params']) ? $payload['params'] : [];
-          $uri = (string) ($paramsIn['uri'] ?? '');
-          if ($uri === '' || !array_key_exists($uri, $this->config->resources)) {
-            $err = ['jsonrpc' => '2.0', 'id' => $id, 'error' => ['code' => -32004, 'message' => 'Resource not found: ' . $uri]];
-            return new ReactResponse(200, ['Content-Type' => 'application/x-ndjson; charset=utf-8'], json_encode($err, JSON_UNESCAPED_UNICODE) . "\n");
+            $paramsIn = isset($payload['params']) && is_array($payload['params']) ? $payload['params'] : [];
+            $uri = (string) ($paramsIn['uri'] ?? '');
+            if ($uri === '' || !array_key_exists($uri, $this->config->resources)) {
+              $err = ['jsonrpc' => '2.0', 'id' => $id, 'error' => ['code' => -32004, 'message' => 'Resource not found: ' . $uri]];
+              return new ReactResponse(200, ['Content-Type' => 'application/x-ndjson; charset=utf-8'], json_encode($err, JSON_UNESCAPED_UNICODE) . "\n");
+            }
+            $val = $this->config->resources[$uri];
+            $isStructured = is_array($val) || is_object($val);
+            $mime = $isStructured ? 'application/json' : 'text/plain';
+            $text = $isStructured ? json_encode($val, JSON_UNESCAPED_UNICODE) : (string) $val;
+            $resp = ['jsonrpc' => '2.0', 'id' => $id, 'result' => ['contents' => [['uri' => $uri, 'mimeType' => $mime, 'text' => $text]]]];
+            return new ReactResponse(200, ['Content-Type' => 'application/x-ndjson; charset=utf-8'], json_encode($resp, JSON_UNESCAPED_UNICODE) . "\n");
           }
-          $val = $this->config->resources[$uri];
-          $isStructured = is_array($val) || is_object($val);
-          $mime = $isStructured ? 'application/json' : 'text/plain';
-          $text = $isStructured ? json_encode($val, JSON_UNESCAPED_UNICODE) : (string) $val;
-          $resp = ['jsonrpc' => '2.0', 'id' => $id, 'result' => ['contents' => [['uri' => $uri, 'mimeType' => $mime, 'text' => $text]]]];
-          return new ReactResponse(200, ['Content-Type' => 'application/x-ndjson; charset=utf-8'], json_encode($resp, JSON_UNESCAPED_UNICODE) . "\n");
-        }
 
-        // По умолчанию: пустая строка NDJSON.
-        return new ReactResponse(200, ['Content-Type' => 'application/x-ndjson; charset=utf-8'], "\n");
+          // По умолчанию: пустая строка NDJSON.
+          return new ReactResponse(200, ['Content-Type' => 'application/x-ndjson; charset=utf-8'], "\n");
         }
       }
 
       // /mcp/http — потоковый HTTP (NDJSON).
       if ($method === 'GET' && $path === $base . '/http') {
-      $stream = new ThroughStream();
-      // Начальный фрейм.
-      Loop::futureTick(function () use ($stream) {
-        $stream->write("{\"type\":\"open\",\"ts\":\"" . date('c') . "\"}\n");
-      });
-      // Периодические пинги.
-      $timer = Loop::addPeriodicTimer(10.0, function () use ($stream) {
-        if (method_exists($stream, 'isWritable') && $stream->isWritable()) {
-          $stream->write("{\"type\":\"ping\",\"ts\":\"" . date('c') . "\"}\n");
-        }
-      });
-      $stream->on('close', function () use ($timer) {
-        Loop::cancelTimer($timer);
-      });
-      $headers = [
-        'Content-Type' => 'application/x-ndjson; charset=utf-8',
-        'Cache-Control' => 'no-cache',
-        'Connection' => 'keep-alive',
-        'Access-Control-Allow-Origin' => '*',
-      ];
-      if ($this->config->logLevel === 'debug') {
-        $this->write('[HTTP] stream opened ip=' . $clientIp . ' ua=' . $ua);
-      }
-      return new ReactResponse(200, $headers, $stream);
-    }
-
-              // /mcp/sse — простой SSE стрим (hello + пульс).
-    if ($method === 'GET' && $path === $base . '/sse') {
-      $stream = new ThroughStream();
-      Loop::futureTick(function () use ($stream) {
-          $stream->write("data: {\"type\":\"connected\",\"message\":\"MCP SSE\"}\n\n");
-      });
+        $stream = new ThroughStream();
+        // Начальный фрейм.
+        Loop::futureTick(function () use ($stream) {
+          $stream->write("{\"type\":\"open\",\"ts\":\"" . date('c') . "\"}\n");
+        });
+        // Периодические пинги.
+        $timer = Loop::addPeriodicTimer(10.0, function () use ($stream) {
+          if (method_exists($stream, 'isWritable') && $stream->isWritable()) {
+            $stream->write("{\"type\":\"ping\",\"ts\":\"" . date('c') . "\"}\n");
+          }
+        });
+        $stream->on('close', function () use ($timer) {
+          Loop::cancelTimer($timer);
+        });
         $headers = [
-          'Content-Type' => 'text/event-stream',
+          'Content-Type' => 'application/x-ndjson; charset=utf-8',
           'Cache-Control' => 'no-cache',
           'Connection' => 'keep-alive',
           'Access-Control-Allow-Origin' => '*',
         ];
         if ($this->config->logLevel === 'debug') {
-          $this->write('[SSE] connection opened ip=' . $clientIp . ' ua=' . $ua);
+          $this->write('[HTTP] stream opened ip=' . $clientIp . ' ua=' . $ua);
         }
         return new ReactResponse(200, $headers, $stream);
+      }
+
+              // /mcp/sse — улучшенный SSE стрим с полной MCP совместимостью.
+      if ($method === 'GET' && $path === $base . '/sse') {
+        // Контент-негациация: если клиент просит JSON, возвращаем манифест.
+        $acceptHeader = $request->getHeaderLine('Accept');
+        $acceptLower = is_string($acceptHeader) ? strtolower($acceptHeader) : '';
+        if ($acceptLower !== '' && str_contains($acceptLower, 'application/json')) {
+          $manifest = [
+            'protocolVersion' => '2025-06-18',
+            'serverInfo' => ['name' => 'Politsin MCP Server', 'version' => '1.0.0'],
+            'capabilities' => ['tools' => [], 'prompts' => [], 'resources' => []],
+            'endpoints' => ['messages' => 'sse', 'requests' => 'mcp/requests'],
+          ];
+          $body = json_encode($manifest, JSON_UNESCAPED_UNICODE);
+          return new ReactResponse(200, ['Content-Type' => 'application/json; charset=utf-8'], $body);
+        }
+
+        $stream = new ThroughStream();
+        
+        // Генерируем session ID.
+        try {
+          $sessionId = bin2hex(random_bytes(16));
+        }
+        catch (\Throwable $e) {
+          $sessionId = uniqid('mcp_', TRUE);
+        }
+
+        // Отправляем начальные кадры в futureTick.
+        Loop::futureTick(function () use ($stream, $sessionId) {
+          // Рекомендуем интервал реконнекта.
+          $stream->write("retry: 3000\n");
+          
+          // Сигнализируем об открытии.
+          $stream->write("event: open\n");
+          $stream->write("data: {}\n\n");
+          
+          // Отправляем endpoint с sessionId.
+          $stream->write("event: endpoint\n");
+          $stream->write("data: {\"url\":\"sse?sessionId={$sessionId}\"}\n\n");
+          
+          // Сигнал готовности.
+          $stream->write("event: message\n");
+          $stream->write("data: {\"type\":\"ready\"}\n\n");
+          
+          // Инициализация.
+          $stream->write("event: message\n");
+          $stream->write("data: {\"type\":\"initialize\",\"protocolVersion\":\"2025-06-18\"}\n\n");
+          
+          // Padding для раннего флаша (2KB).
+          for ($i = 0; $i < 100; $i++) {
+            $stream->write(": padding " . str_repeat('x', 20) . "\n");
+          }
+          $stream->write("\n");
+          
+          // Манифест в разных форматах для совместимости.
+          $manifest = [
+            'protocolVersion' => '2025-06-18',
+            'serverInfo' => ['name' => 'Politsin MCP Server', 'version' => '1.0.0'],
+            'capabilities' => ['tools' => [], 'prompts' => [], 'resources' => []],
+            'endpoints' => ['messages' => 'sse', 'requests' => 'mcp/requests'],
+          ];
+          $manifestJson = json_encode(['manifest' => $manifest], JSON_UNESCAPED_UNICODE);
+          $manifestTypedJson = json_encode(['type' => 'manifest', 'manifest' => $manifest], JSON_UNESCAPED_UNICODE);
+          
+          $stream->write("data: {$manifestJson}\n\n");
+          $stream->write("data: {$manifestTypedJson}\n\n");
+          $stream->write("event: manifest\n");
+          $stream->write("data: {$manifestJson}\n\n");
+          
+          // Bootstrap запрос tools/list.
+          $toolsListRequest = [
+            'jsonrpc' => '2.0',
+            'id' => 'bootstrap',
+            'method' => 'tools/list',
+          ];
+          $toolsListJson = json_encode($toolsListRequest, JSON_UNESCAPED_UNICODE);
+          $stream->write("event: message\n");
+          $stream->write("data: {\"type\":\"request\",\"request\":{$toolsListJson}}\n\n");
+        });
+
+        // Ранние keep-alive каждую секунду первые 10 секунд.
+        $earlyTimer = Loop::addPeriodicTimer(1.0, function () use ($stream) {
+          if ($stream->isWritable()) {
+            $stream->write(": keep-alive\n\n");
+          }
+        });
+        Loop::addTimer(10.0, function () use ($earlyTimer) {
+          Loop::cancelTimer($earlyTimer);
+        });
+
+        // Периодические пинги каждые 10 секунд.
+        $timer = Loop::addPeriodicTimer(10.0, function () use ($stream) {
+          if ($stream->isWritable()) {
+            $stream->write(": ping " . date('c') . "\n\n");
+          }
+        });
+
+        // Heartbeat каждые 30 секунд.
+        $heartbeatTimer = Loop::addPeriodicTimer(30.0, function () use ($stream) {
+          if ($stream->isWritable()) {
+            $stream->write("event: message\n");
+            $stream->write("data: {\"type\":\"heartbeat\",\"ts\":\"" . date('c') . "\"}\n\n");
+          }
+        });
+
+        // Очистка при закрытии соединения.
+        $stream->on('close', function () use ($timer, $earlyTimer, $heartbeatTimer) {
+          Loop::cancelTimer($timer);
+          Loop::cancelTimer($earlyTimer);
+          Loop::cancelTimer($heartbeatTimer);
+        });
+
+        $headers = [
+          'Content-Type' => 'text/event-stream; charset=utf-8',
+          'Cache-Control' => 'no-cache, no-transform',
+          'X-Accel-Buffering' => 'no',
+          'Connection' => 'keep-alive',
+          'Access-Control-Allow-Origin' => '*',
+          'mcp-session-id' => $sessionId,
+        ];
+        
+        if ($this->config->logLevel === 'debug') {
+          $this->write('[SSE] connection opened ip=' . $clientIp . ' ua=' . $ua . ' session=' . $sessionId);
+        }
+        
+        return new ReactResponse(200, $headers, $stream);
+      }
+
+      if ($this->config->logLevel === 'debug') {
+        $this->write('[RESP] 404 not_found');
+      }
+      return ReactResponse::json(['error' => 'not_found'], 404);
+    });
+
+    return $this->server;
+
+  }
+
+  /**
+   * Включает/выключает печать логов прослушивания.
+   */
+  public function setPrintListenLogs(bool $enabled): void {
+    $this->printListenLogs = $enabled;
+  }
+
+  /**
+   * Устанавливает обработчик вывода строк.
+   *
+   * @param callable|null $writer
+   *   function(string $line): void.
+   */
+  public function setOutputWriter(?callable $writer): void {
+    $this->outputWriter = $writer;
+  }
+
+  /**
+   * Печатает строку, если логи включены.
+   */
+  private function write(string $line): void {
+    if (!$this->printListenLogs) {
+      return;
     }
-
-    if ($this->config->logLevel === 'debug') {
-      $this->write('[RESP] 404 not_found');
+    $ts = date('Y-m-d H:i:s');
+    $lineOut = sprintf('[%s] %s', $ts, $line);
+    // Пишем в лог‑файл, если задан.
+    if (is_string($this->config->logFile) && $this->config->logFile !== '') {
+      @file_put_contents($this->config->logFile, $lineOut . "\n", FILE_APPEND | LOCK_EX);
     }
-    return ReactResponse::json(['error' => 'not_found'], 404);
-  });
-
-  return $this->server;
-
-}
-
-/**
- * Включает/выключает печать логов прослушивания.
- */
-public function setPrintListenLogs(bool $enabled): void {
-  $this->printListenLogs = $enabled;
-}
-
-/**
- * Устанавливает обработчик вывода строк.
- *
- * @param callable|null $writer
- *   function(string $line): void.
- */
-public function setOutputWriter(?callable $writer): void {
-  $this->outputWriter = $writer;
-}
-
-/**
- * Печатает строку, если логи включены.
- */
-private function write(string $line): void {
-  if (!$this->printListenLogs) {
-    return;
+    if (is_callable($this->outputWriter)) {
+      ($this->outputWriter)($lineOut);
+      return;
+    }
+    echo $lineOut . "\n";
   }
-  $ts = date('Y-m-d H:i:s');
-  $lineOut = sprintf('[%s] %s', $ts, $line);
-  // Пишем в лог‑файл, если задан.
-  if (is_string($this->config->logFile) && $this->config->logFile !== '') {
-    @file_put_contents($this->config->logFile, $lineOut . "\n", FILE_APPEND | LOCK_EX);
-  }
-  if (is_callable($this->outputWriter)) {
-    ($this->outputWriter)($lineOut);
-    return;
-  }
-  echo $lineOut . "\n";
-}
 
-/**
- * Слушать TCP адрес.
- */
-public function listenTcp(string $host, int $port): void {
-  $server = $this->getServer();
-  $tcpAddress = $host . ':' . $port;
-  $socketTcp = new SocketServer($tcpAddress);
-  $server->listen($socketTcp);
-  $this->write("[MCP] Listening TCP on http://{$tcpAddress}");
-}
+  /**
+   * Слушать TCP адрес.
+   */
+  public function listenTcp(string $host, int $port): void {
+    $server = $this->getServer();
+    $tcpAddress = $host . ':' . $port;
+    $socketTcp = new SocketServer($tcpAddress);
+    $server->listen($socketTcp);
+    $this->write("[MCP] Listening TCP on http://{$tcpAddress}");
+  }
 
-/**
- * Слушать UNIX-сокет.
- */
-public function listenUnixSocket(string $unixSocketPath): void {
-  if ($unixSocketPath === '') {
-    return;
+  /**
+   * Слушать UNIX-сокет.
+   */
+  public function listenUnixSocket(string $unixSocketPath): void {
+    if ($unixSocketPath === '') {
+      return;
+    }
+    $server = $this->getServer();
+    $dir = dirname($unixSocketPath);
+    if (!is_dir($dir)) {
+      @mkdir($dir, 0777, TRUE);
+    }
+    if (file_exists($unixSocketPath)) {
+      @unlink($unixSocketPath);
+    }
+    $unixAddress = str_starts_with($unixSocketPath, 'unix://') ? $unixSocketPath : ('unix://' . $unixSocketPath);
+    $socketUnix = new SocketServer($unixAddress);
+    $server->listen($socketUnix);
+    $this->write("[MCP] Listening UNIX socket on {$unixAddress}");
   }
-  $server = $this->getServer();
-  $dir = dirname($unixSocketPath);
-  if (!is_dir($dir)) {
-    @mkdir($dir, 0777, TRUE);
-  }
-  if (file_exists($unixSocketPath)) {
-    @unlink($unixSocketPath);
-  }
-  $unixAddress = str_starts_with($unixSocketPath, 'unix://') ? $unixSocketPath : ('unix://' . $unixSocketPath);
-  $socketUnix = new SocketServer($unixAddress);
-  $server->listen($socketUnix);
-  $this->write("[MCP] Listening UNIX socket on {$unixAddress}");
-}
 
 }
