@@ -217,7 +217,6 @@ final class ReactMcpServer {
           return new ReactResponse(200, ['Content-Type' => 'application/x-ndjson; charset=utf-8'], json_encode($resp, JSON_UNESCAPED_UNICODE) . "\n");
         }
 
-      }
         // По умолчанию: пустая строка NDJSON.
         return new ReactResponse(200, ['Content-Type' => 'application/x-ndjson; charset=utf-8'], "\n");
       }
