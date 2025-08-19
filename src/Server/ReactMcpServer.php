@@ -74,9 +74,12 @@ final class ReactMcpServer {
     $this->server = new HttpServer(function ($request) use ($base) {
         $method = $request->getMethod();
         $path = $request->getUri()->getPath();
+        $serverParams = $request->getServerParams();
+        $clientIp = $request->getHeaderLine('X-Forwarded-For') ?: $request->getHeaderLine('X-Real-IP') ?: ($serverParams['REMOTE_ADDR'] ?? 'unknown');
+        $ua = $request->getHeaderLine('User-Agent') ?: 'unknown';
         // Логи запросов при info/debug.
       if ($this->config->logLevel === 'info' || $this->config->logLevel === 'debug') {
-        $this->write(sprintf('[REQ] %s %s', $method, $path));
+        $this->write(sprintf('[REQ] ip=%s ua=%s %s %s', $clientIp, $ua, $method, $path));
       }
 
         // /mcp/api — обычные GET‑запросы, возвращаем JSON с query‑параметрами.
@@ -115,7 +118,7 @@ final class ReactMcpServer {
           'Access-Control-Allow-Origin' => '*',
         ];
         if ($this->config->logLevel === 'debug') {
-          $this->write('[HTTP] stream opened');
+          $this->write('[HTTP] stream opened ip=' . $clientIp . ' ua=' . $ua);
         }
         return new ReactResponse(200, $headers, $stream);
       }
@@ -133,7 +136,7 @@ final class ReactMcpServer {
             'Access-Control-Allow-Origin' => '*',
           ];
           if ($this->config->logLevel === 'debug') {
-            $this->write('[SSE] connection opened');
+            $this->write('[SSE] connection opened ip=' . $clientIp . ' ua=' . $ua);
           }
           return new ReactResponse(200, $headers, $stream);
       }
