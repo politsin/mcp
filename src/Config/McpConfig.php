@@ -20,6 +20,9 @@ final class McpConfig {
 
   /** @var string */
   public string $basePath;
+
+  /** @var string|null */
+  public ?string $logFile = NULL;
   // phpcs:enable
 
   /**
@@ -33,12 +36,15 @@ final class McpConfig {
    *   Коллбэк авторизации: function(?array $request): bool.
    * @param string $basePath
    *   Базовый путь HTTP‑эндпоинтов (например, "/mcp").
+   * @param string|null $logFile
+   *   Путь к лог‑файлу для сообщений сервера (или NULL для отключения записи в файл).
    */
-  public function __construct(array $tools = [], array $resources = [], ?callable $authCallback = NULL, string $basePath = '/mcp') {
+  public function __construct(array $tools = [], array $resources = [], ?callable $authCallback = NULL, string $basePath = '/mcp', ?string $logFile = NULL) {
     $this->tools = $tools;
     $this->resources = $resources;
     $this->authCallback = $authCallback;
     $this->basePath = $basePath;
+    $this->logFile = $logFile;
   }
 
 }

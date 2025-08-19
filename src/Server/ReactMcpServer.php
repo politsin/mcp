@@ -121,7 +121,7 @@ final class ReactMcpServer {
    * Устанавливает обработчик вывода строк.
    *
    * @param callable|null $writer
-   *   function(string $line): void
+   *   function(string $line): void.
    */
   public function setOutputWriter(?callable $writer): void {
     $this->outputWriter = $writer;
@@ -133,6 +133,10 @@ final class ReactMcpServer {
   private function write(string $line): void {
     if (!$this->printListenLogs) {
       return;
+    }
+    // Пишем в лог‑файл, если задан.
+    if (is_string($this->config->logFile) && $this->config->logFile !== '') {
+      @file_put_contents($this->config->logFile, $line . "\n", FILE_APPEND | LOCK_EX);
     }
     if (is_callable($this->outputWriter)) {
       ($this->outputWriter)($line);
