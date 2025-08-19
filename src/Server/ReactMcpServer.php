@@ -95,6 +95,41 @@ final class ReactMcpServer {
         return ReactResponse::json(['ok' => TRUE, 'query' => $params]);
       }
 
+      // /mcp/http — JSON-RPC по POST: базовая поддержка initialize.
+      if ($method === 'POST' && $path === $base . '/http') {
+        $raw = (string) $request->getBody();
+        $payload = json_decode($raw, TRUE);
+        if (is_array($payload)) {
+          $rpcMethod = (string) ($payload['method'] ?? '');
+          $id = $payload['id'] ?? NULL;
+          if ($rpcMethod === 'initialize') {
+            $params = isset($payload['params']) && is_array($payload['params']) ? $payload['params'] : [];
+            $proto = (string) ($params['protocolVersion'] ?? '');
+            $client = isset($params['clientInfo']) && is_array($params['clientInfo']) ? $params['clientInfo'] : [];
+            $clientName = (string) ($client['name'] ?? '');
+            $clientVer = (string) ($client['version'] ?? '');
+            $caps = isset($params['capabilities']) && is_array($params['capabilities']) ? array_keys($params['capabilities']) : [];
+            $this->write('[INIT] ip=' . $clientIp . ' ua=' . $ua . ' protocol=' . ($proto ?: 'n/a') . ' client=' . ($clientName ?: 'n/a') . ' v=' . ($clientVer ?: 'n/a') . ' caps=' . json_encode($caps));
+
+            $result = [
+              'jsonrpc' => '2.0',
+              'id' => $id,
+              'result' => [
+                'protocolVersion' => $proto !== '' ? $proto : '2024-11-05',
+                'serverInfo' => ['name' => 'Politsin MCP Server', 'version' => '1.0.0'],
+                'capabilities' => ['tools' => new \stdClass(), 'prompts' => new \stdClass(), 'resources' => new \stdClass()],
+                'session' => ['id' => 'simple-mcp-session'],
+                'endpoints' => ['messages' => 'sse', 'requests' => 'http'],
+              ],
+            ];
+            $body = json_encode($result, JSON_UNESCAPED_UNICODE) . "\n";
+            return new ReactResponse(200, ['Content-Type' => 'application/x-ndjson; charset=utf-8'], $body);
+          }
+        }
+        // По умолчанию: пустая строка NDJSON.
+        return new ReactResponse(200, ['Content-Type' => 'application/x-ndjson; charset=utf-8'], "\n");
+      }
+
         // /mcp/http — потоковый HTTP (NDJSON).
       if ($path === $base . '/http') {
         $stream = new ThroughStream();
