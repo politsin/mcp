@@ -22,8 +22,24 @@ final class ReactMcpServer {
    */
   private McpConfig $config;
 
-  /** @var \React\Http\HttpServer|null */
+  /**
+   * @var \React\Http\HttpServer|null
+   */
   private ?HttpServer $server = NULL;
+
+  /**
+   * Управляет печатью сообщений о прослушивании адресов.
+   *
+   * @var bool
+   */
+  private bool $printListenLogs = TRUE;
+
+  /**
+   * Пользовательский выводчик строк (если не задан — используется echo).
+   *
+   * @var callable|null
+   */
+  private $outputWriter = NULL;
 
   public function __construct(McpConfig $config) {
     $this->config = $config;
@@ -95,6 +111,37 @@ final class ReactMcpServer {
   }
 
   /**
+   * Включает/выключает печать логов прослушивания.
+   */
+  public function setPrintListenLogs(bool $enabled): void {
+    $this->printListenLogs = $enabled;
+  }
+
+  /**
+   * Устанавливает обработчик вывода строк.
+   *
+   * @param callable|null $writer
+   *   function(string $line): void
+   */
+  public function setOutputWriter(?callable $writer): void {
+    $this->outputWriter = $writer;
+  }
+
+  /**
+   * Печатает строку, если логи включены.
+   */
+  private function write(string $line): void {
+    if (!$this->printListenLogs) {
+      return;
+    }
+    if (is_callable($this->outputWriter)) {
+      ($this->outputWriter)($line);
+      return;
+    }
+    echo $line . "\n";
+  }
+
+  /**
    * Слушать TCP адрес.
    */
   public function listenTcp(string $host, int $port): void {
@@ -102,7 +149,7 @@ final class ReactMcpServer {
     $tcpAddress = $host . ':' . $port;
     $socketTcp = new SocketServer($tcpAddress);
     $server->listen($socketTcp);
-    echo "[MCP] Listening TCP on http://{$tcpAddress}\n";
+    $this->write("[MCP] Listening TCP on http://{$tcpAddress}");
   }
 
   /**
@@ -123,7 +170,7 @@ final class ReactMcpServer {
     $unixAddress = str_starts_with($unixSocketPath, 'unix://') ? $unixSocketPath : ('unix://' . $unixSocketPath);
     $socketUnix = new SocketServer($unixAddress);
     $server->listen($socketUnix);
-    echo "[MCP] Listening UNIX socket on {$unixAddress}\n";
+    $this->write("[MCP] Listening UNIX socket on {$unixAddress}");
   }
 
 }
