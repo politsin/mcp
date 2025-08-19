@@ -74,6 +74,10 @@ final class ReactMcpServer {
     $this->server = new HttpServer(function ($request) use ($base) {
         $method = $request->getMethod();
         $path = $request->getUri()->getPath();
+        // Логи запросов при info/debug.
+        if ($this->config->logLevel === 'info' || $this->config->logLevel === 'debug') {
+          $this->write(sprintf('[REQ] %s %s', $method, $path));
+        }
 
         // /mcp/api — JSON RPC совместимый endpoint (минимум echo для MVP).
       if ($method === 'POST' && $path === $base . '/api') {
@@ -102,9 +106,15 @@ final class ReactMcpServer {
             'Connection' => 'keep-alive',
             'Access-Control-Allow-Origin' => '*',
           ];
+          if ($this->config->logLevel === 'debug') {
+            $this->write('[SSE] connection opened');
+          }
           return new ReactResponse(200, $headers, $stream);
       }
 
+              if ($this->config->logLevel === 'debug') {
+                $this->write('[RESP] 404 not_found');
+              }
               return ReactResponse::json(['error' => 'not_found'], 404);
     });
     return $this->server;

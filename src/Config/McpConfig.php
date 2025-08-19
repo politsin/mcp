@@ -23,6 +23,9 @@ final class McpConfig {
 
   /** @var string|null */
   public ?string $logFile = NULL;
+
+  /** @var string */
+  public string $logLevel = 'info';
   // phpcs:enable
 
   /**
@@ -38,13 +41,16 @@ final class McpConfig {
    *   Базовый путь HTTP‑эндпоинтов (например, "/mcp").
    * @param string|null $logFile
    *   Путь к лог‑файлу для сообщений сервера (или NULL для отключения записи в файл).
+   * @param string $logLevel
+   *   Уровень логирования: 'error' | 'info' | 'debug'.
    */
-  public function __construct(array $tools = [], array $resources = [], ?callable $authCallback = NULL, string $basePath = '/mcp', ?string $logFile = NULL) {
+  public function __construct(array $tools = [], array $resources = [], ?callable $authCallback = NULL, string $basePath = '/mcp', ?string $logFile = NULL, string $logLevel = 'info') {
     $this->tools = $tools;
     $this->resources = $resources;
     $this->authCallback = $authCallback;
     $this->basePath = $basePath;
     $this->logFile = $logFile;
+    $this->logLevel = $logLevel;
   }
 
 }
