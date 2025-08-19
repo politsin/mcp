@@ -17,7 +17,7 @@ final class TestPage {
     $html = <<<HTML
 <!doctype html>
 <meta charset="utf-8">
-<title>MCP/SSE Test v0.1.19</title>
+<title>MCP/SSE Test v0.1.20</title>
 <style>
   html, body { height: 100%; margin: 0; font-family: system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif; }
   body { display: flex; flex-direction: column; }
@@ -45,7 +45,7 @@ final class TestPage {
 <body>
   <header>
     <div class="row">
-      <div class="badge mono">MCP/SSE Test <span class="ok">v0.1.19</span></div>
+      <div class="badge mono">MCP/SSE Test <span class="ok">v0.1.20</span></div>
       <div class="muted">Базовый путь: <span class="mono">$base</span></div>
     </div>
   </header>
@@ -78,12 +78,14 @@ final class TestPage {
   <script>
     const logEl = document.getElementById('log');
     // VERSION MARKER
-    try { console.log('TEST_PAGE_VERSION v0.1.19'); } catch (e) {}
+    try { console.log('TEST_PAGE_VERSION v0.1.20'); } catch (e) {}
     function logLine(kind, ...args) {
       const line = '[' + new Date().toISOString() + '] ' + kind + ' ' + args.join(' ');
       try { console.log(line); } catch(e) {}
       try {
-        logEl.textContent += line + '\n';
+        // Используем безопасный вариант без строковых экранирований.
+        // logEl.textContent += line + '\n';
+        logEl.appendChild(document.createTextNode(line + '\n'));
         logEl.scrollTop = logEl.scrollHeight;
       } catch(e) {}
     }
