@@ -84,11 +84,27 @@ final class ReactMcpServer {
 
         // /mcp — JSON манифест (совместимость клиентов).
       if ($method === 'GET' && $path === $base) {
+        // Формируем список tools для манифеста.
+        $toolsOut = [];
+        foreach (array_keys($this->config->tools) as $toolName) {
+          $toolsOut[] = [
+            'name' => $toolName,
+            'description' => 'Tool ' . $toolName,
+            'inputSchema' => [
+              'type' => 'object',
+              'properties' => [],
+              'required' => [],
+              'additionalProperties' => FALSE,
+            ],
+          ];
+        }
+
         $manifest = [
           'protocolVersion' => '2025-06-18',
           'serverInfo' => ['name' => 'Politsin MCP Server', 'version' => '1.0.0'],
-          'capabilities' => ['tools' => [], 'prompts' => [], 'resources' => []],
+          'capabilities' => ['tools' => new \stdClass(), 'prompts' => new \stdClass(), 'resources' => new \stdClass()],
           'endpoints' => ['messages' => 'sse', 'requests' => 'mcp/requests'],
+          'tools' => $toolsOut,
         ];
         return ReactResponse::json($manifest);
       }
@@ -128,7 +144,11 @@ final class ReactMcpServer {
               'result' => [
                 'protocolVersion' => $proto !== '' ? $proto : '2024-11-05',
                 'serverInfo' => ['name' => 'Politsin MCP Server', 'version' => '1.0.0'],
-                'capabilities' => ['tools' => new \stdClass(), 'prompts' => new \stdClass(), 'resources' => new \stdClass()],
+                'capabilities' => [
+                  'tools' => new \stdClass(),
+                  'prompts' => new \stdClass(),
+                  'resources' => new \stdClass(),
+                ],
                 'session' => ['id' => 'simple-mcp-session'],
                 'endpoints' => ['messages' => 'sse', 'requests' => 'mcp/requests'],
               ],
@@ -168,7 +188,14 @@ final class ReactMcpServer {
             $name = (string) ($paramsIn['name'] ?? ($paramsIn['tool'] ?? ''));
             $arguments = isset($paramsIn['arguments']) && is_array($paramsIn['arguments']) ? $paramsIn['arguments'] : [];
             if ($name === '' || !isset($this->config->tools[$name])) {
-              $err = ['jsonrpc' => '2.0', 'id' => $id, 'error' => ['code' => -32602, 'message' => 'Unknown tool: ' . $name]];
+              $err = [
+                'jsonrpc' => '2.0',
+                'id' => $id,
+                'error' => [
+                  'code' => -32602,
+                  'message' => 'Unknown tool: ' . $name,
+                ],
+              ];
               return new ReactResponse(200, ['Content-Type' => 'application/x-ndjson; charset=utf-8'], json_encode($err, JSON_UNESCAPED_UNICODE) . "\n");
             }
             try {
@@ -186,7 +213,14 @@ final class ReactMcpServer {
               return new ReactResponse(200, ['Content-Type' => 'application/x-ndjson; charset=utf-8'], json_encode($resp, JSON_UNESCAPED_UNICODE) . "\n");
             }
             catch (\Throwable $e) {
-              $err = ['jsonrpc' => '2.0', 'id' => $id, 'error' => ['code' => -32000, 'message' => $e->getMessage()]];
+              $err = [
+                'jsonrpc' => '2.0',
+                'id' => $id,
+                'error' => [
+                  'code' => -32000,
+                  'message' => $e->getMessage(),
+                ],
+              ];
               return new ReactResponse(200, ['Content-Type' => 'application/x-ndjson; charset=utf-8'], json_encode($err, JSON_UNESCAPED_UNICODE) . "\n");
             }
           }
@@ -212,14 +246,33 @@ final class ReactMcpServer {
             $paramsIn = isset($payload['params']) && is_array($payload['params']) ? $payload['params'] : [];
             $uri = (string) ($paramsIn['uri'] ?? '');
             if ($uri === '' || !array_key_exists($uri, $this->config->resources)) {
-              $err = ['jsonrpc' => '2.0', 'id' => $id, 'error' => ['code' => -32004, 'message' => 'Resource not found: ' . $uri]];
+              $err = [
+                'jsonrpc' => '2.0',
+                'id' => $id,
+                'error' => [
+                  'code' => -32004,
+                  'message' => 'Resource not found: ' . $uri,
+                ],
+              ];
               return new ReactResponse(200, ['Content-Type' => 'application/x-ndjson; charset=utf-8'], json_encode($err, JSON_UNESCAPED_UNICODE) . "\n");
             }
             $val = $this->config->resources[$uri];
             $isStructured = is_array($val) || is_object($val);
             $mime = $isStructured ? 'application/json' : 'text/plain';
             $text = $isStructured ? json_encode($val, JSON_UNESCAPED_UNICODE) : (string) $val;
-            $resp = ['jsonrpc' => '2.0', 'id' => $id, 'result' => ['contents' => [['uri' => $uri, 'mimeType' => $mime, 'text' => $text]]]];
+            $resp = [
+              'jsonrpc' => '2.0',
+              'id' => $id,
+              'result' => [
+                'contents' => [
+                  [
+                    'uri' => $uri,
+                    'mimeType' => $mime,
+                    'text' => $text,
+                  ],
+                ],
+              ],
+            ];
             return new ReactResponse(200, ['Content-Type' => 'application/x-ndjson; charset=utf-8'], json_encode($resp, JSON_UNESCAPED_UNICODE) . "\n");
           }
 
@@ -262,18 +315,34 @@ final class ReactMcpServer {
         $acceptHeader = $request->getHeaderLine('Accept');
         $acceptLower = is_string($acceptHeader) ? strtolower($acceptHeader) : '';
         if ($acceptLower !== '' && str_contains($acceptLower, 'application/json')) {
+          // Формируем список tools для манифеста.
+          $toolsOut = [];
+          foreach (array_keys($this->config->tools) as $toolName) {
+            $toolsOut[] = [
+              'name' => $toolName,
+              'description' => 'Tool ' . $toolName,
+              'inputSchema' => [
+                'type' => 'object',
+                'properties' => [],
+                'required' => [],
+                'additionalProperties' => FALSE,
+              ],
+            ];
+          }
+
           $manifest = [
             'protocolVersion' => '2025-06-18',
             'serverInfo' => ['name' => 'Politsin MCP Server', 'version' => '1.0.0'],
-            'capabilities' => ['tools' => [], 'prompts' => [], 'resources' => []],
+            'capabilities' => ['tools' => new \stdClass(), 'prompts' => new \stdClass(), 'resources' => new \stdClass()],
             'endpoints' => ['messages' => 'sse', 'requests' => 'mcp/requests'],
+            'tools' => $toolsOut,
           ];
           $body = json_encode($manifest, JSON_UNESCAPED_UNICODE);
           return new ReactResponse(200, ['Content-Type' => 'application/json; charset=utf-8'], $body);
         }
 
         $stream = new ThroughStream();
-        
+
         // Генерируем session ID.
         try {
           $sessionId = bin2hex(random_bytes(16));
@@ -286,44 +355,59 @@ final class ReactMcpServer {
         Loop::futureTick(function () use ($stream, $sessionId) {
           // Рекомендуем интервал реконнекта.
           $stream->write("retry: 3000\n");
-          
+
           // Сигнализируем об открытии.
           $stream->write("event: open\n");
           $stream->write("data: {}\n\n");
-          
+
           // Отправляем endpoint с sessionId.
           $stream->write("event: endpoint\n");
           $stream->write("data: {\"url\":\"sse?sessionId={$sessionId}\"}\n\n");
-          
+
           // Сигнал готовности.
           $stream->write("event: message\n");
           $stream->write("data: {\"type\":\"ready\"}\n\n");
-          
+
           // Инициализация.
           $stream->write("event: message\n");
           $stream->write("data: {\"type\":\"initialize\",\"protocolVersion\":\"2025-06-18\"}\n\n");
-          
+
           // Padding для раннего флаша (2KB).
           for ($i = 0; $i < 100; $i++) {
             $stream->write(": padding " . str_repeat('x', 20) . "\n");
           }
           $stream->write("\n");
-          
+
+          // Формируем список tools для манифеста.
+          $toolsOut = [];
+          foreach (array_keys($this->config->tools) as $toolName) {
+            $toolsOut[] = [
+              'name' => $toolName,
+              'description' => 'Tool ' . $toolName,
+              'inputSchema' => [
+                'type' => 'object',
+                'properties' => [],
+                'required' => [],
+                'additionalProperties' => FALSE,
+              ],
+            ];
+          }
           // Манифест в разных форматах для совместимости.
           $manifest = [
             'protocolVersion' => '2025-06-18',
             'serverInfo' => ['name' => 'Politsin MCP Server', 'version' => '1.0.0'],
-            'capabilities' => ['tools' => [], 'prompts' => [], 'resources' => []],
+            'capabilities' => ['tools' => new \stdClass(), 'prompts' => new \stdClass(), 'resources' => new \stdClass()],
             'endpoints' => ['messages' => 'sse', 'requests' => 'mcp/requests'],
+            'tools' => $toolsOut,
           ];
           $manifestJson = json_encode(['manifest' => $manifest], JSON_UNESCAPED_UNICODE);
           $manifestTypedJson = json_encode(['type' => 'manifest', 'manifest' => $manifest], JSON_UNESCAPED_UNICODE);
-          
+
           $stream->write("data: {$manifestJson}\n\n");
           $stream->write("data: {$manifestTypedJson}\n\n");
           $stream->write("event: manifest\n");
           $stream->write("data: {$manifestJson}\n\n");
-          
+
           // Bootstrap запрос tools/list.
           $toolsListRequest = [
             'jsonrpc' => '2.0',
@@ -375,11 +459,11 @@ final class ReactMcpServer {
           'Access-Control-Allow-Origin' => '*',
           'mcp-session-id' => $sessionId,
         ];
-        
+
         if ($this->config->logLevel === 'debug') {
           $this->write('[SSE] connection opened ip=' . $clientIp . ' ua=' . $ua . ' session=' . $sessionId);
         }
-        
+
         return new ReactResponse(200, $headers, $stream);
       }
 
@@ -404,7 +488,7 @@ final class ReactMcpServer {
    * Устанавливает обработчик вывода строк.
    *
    * @param callable|null $writer
-   *   function(string $line): void.
+   *   Function(string $line): void.
    */
   public function setOutputWriter(?callable $writer): void {
     $this->outputWriter = $writer;

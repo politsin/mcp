@@ -5,7 +5,7 @@ declare(strict_types=1);
 namespace Politsin\Mcp\Http;
 
 /**
- *
+ * Тестовая HTML-страница для проверки MCP/SSE функциональности.
  */
 final class TestPage {
 
