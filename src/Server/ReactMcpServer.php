@@ -23,6 +23,8 @@ final class ReactMcpServer {
   private McpConfig $config;
 
   /**
+   * HTTP сервер ReactPHP.
+   *
    * @var \React\Http\HttpServer|null
    */
   private ?HttpServer $server = NULL;
