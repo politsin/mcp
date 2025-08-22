@@ -82,6 +82,7 @@ final class ReactMcpServer {
       'Access-Control-Allow-Origin' => '*',
       'Access-Control-Allow-Headers' => 'Content-Type, mcp-session-id, mcp-protocol-version',
       'Access-Control-Allow-Methods' => 'GET, POST, OPTIONS',
+      'Access-Control-Allow-Credentials' => 'false',
       'Access-Control-Expose-Headers' => 'mcp-session-id',
       'Access-Control-Max-Age' => '0',
     ];
