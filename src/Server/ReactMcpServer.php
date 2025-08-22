@@ -78,7 +78,7 @@ final class ReactMcpServer {
    * Создает ответ с максимально разрешающими CORS заголовками для всех запросов.
    */
   private function createResponse(int $statusCode, array $headers = [], $body = ''): ReactResponse {
-    // Максимально разрешающие CORS заголовки - разрешаем ВСЁ
+    // Максимально разрешающие CORS заголовки - разрешаем ВСЁ.
     $cors = [
       'Access-Control-Allow-Origin' => '*',
       'Access-Control-Allow-Methods' => '*',
@@ -122,7 +122,7 @@ final class ReactMcpServer {
 
                 // Preflight OPTIONS - отвечаем на ВСЕ OPTIONS запросы с максимальными разрешениями.
       if ($method === 'OPTIONS') {
-        // Разрешаем абсолютно всё что запрашивается
+        // Разрешаем абсолютно всё что запрашивается.
         return $this->createResponse(204, []);
       }
 
@@ -417,18 +417,13 @@ final class ReactMcpServer {
           $stream->write("event: endpoint\n");
           $stream->write("data: /mcp/sse/message?sessionId={$sessionId}\n\n");
 
-          // Инициализация (JSON-RPC ответ).
-          $initResponse = [
-            'jsonrpc' => '2.0',
-            'id' => 'init-1',
-            'result' => [
-              'protocolVersion' => '2024-11-05',
-              'capabilities' => ['tools' => ['listChanged' => TRUE]],
-              'serverInfo' => ['name' => 'Politsin MCP Server', 'version' => '1.0.0'],
-            ],
+          // Инициализация (тип initialize).
+          $initMessage = [
+            'type' => 'initialize',
+            'protocolVersion' => '2024-11-05',
           ];
           $stream->write("event: message\n");
-          $stream->write("data: " . json_encode($initResponse, JSON_UNESCAPED_UNICODE) . "\n\n");
+          $stream->write("data: " . json_encode($initMessage, JSON_UNESCAPED_UNICODE) . "\n\n");
 
           // Формируем список tools.
           $toolsOut = [];
@@ -445,18 +440,38 @@ final class ReactMcpServer {
             ];
           }
 
-          // Tools/list ответ (JSON-RPC).
-          $toolsListResponse = [
-            'jsonrpc' => '2.0',
-            'id' => 'tool-list-1',
-            'result' => ['tools' => $toolsOut],
+          // Манифест.
+          $manifest = [
+            'protocolVersion' => '2024-11-05',
+            'capabilities' => ['tools' => ['listChanged' => TRUE]],
+            'serverInfo' => ['name' => 'Politsin MCP Server', 'version' => '1.0.0'],
+            'endpoints' => ['messages' => 'sse', 'requests' => 'mcp/requests'],
+            'tools' => $toolsOut,
+          ];
+
+          // Манифест в формате data.
+          $stream->write("event: message\n");
+          $stream->write("data: " . json_encode(['manifest' => $manifest], JSON_UNESCAPED_UNICODE) . "\n\n");
+
+          // Манифест в формате type=manifest.
+          $stream->write("event: message\n");
+          $stream->write("data: " . json_encode(['type' => 'manifest', 'manifest' => $manifest], JSON_UNESCAPED_UNICODE) . "\n\n");
+
+          // Манифест в формате event: manifest.
+          $stream->write("event: manifest\n");
+          $stream->write("data: " . json_encode(['manifest' => $manifest], JSON_UNESCAPED_UNICODE) . "\n\n");
+
+          // Bootstrap запрос tools/list.
+          $bootstrapRequest = [
+            'type' => 'request',
+            'request' => [
+              'jsonrpc' => '2.0',
+              'id' => 'bootstrap',
+              'method' => 'tools/list',
+            ],
           ];
           $stream->write("event: message\n");
-          $stream->write("data: " . json_encode($toolsListResponse, JSON_UNESCAPED_UNICODE) . "\n\n");
-
-          // Дублируем tools/list ответ (как в demo-day).
-          $stream->write("event: message\n");
-          $stream->write("data: " . json_encode($toolsListResponse, JSON_UNESCAPED_UNICODE) . "\n\n");
+          $stream->write("data: " . json_encode($bootstrapRequest, JSON_UNESCAPED_UNICODE) . "\n\n");
         });
 
         // Простой keep-alive каждые 30 секунд.
@@ -690,9 +705,13 @@ final class ReactMcpServer {
       if ($this->config->logLevel === 'debug') {
         $this->write('[RESP] 404 not_found - but with CORS');
       }
-      
-      // На ВСЕ запросы (даже 404) отвечаем с полными CORS заголовками
-      return $this->createResponse(404, ['Content-Type' => 'application/json; charset=utf-8'], json_encode(['error' => 'not_found', 'message' => 'Endpoint not found, but CORS headers are provided'], JSON_UNESCAPED_UNICODE));
+
+      // На ВСЕ запросы (даже 404) отвечаем с полными CORS заголовками.
+      $errorData = [
+        'error' => 'not_found',
+        'message' => 'Endpoint not found, but CORS headers are provided',
+      ];
+      return $this->createResponse(404, ['Content-Type' => 'application/json; charset=utf-8'], json_encode($errorData, JSON_UNESCAPED_UNICODE));
     });
 
     return $this->server;
