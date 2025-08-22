@@ -1,6 +1,6 @@
 # politsin/mcp
 
-PHP-библиотека для взаимодействия с MCP (Model Context Protocol) для PHP 8.3+.
+PHP-библиотека MCP (Model Context Protocol) для PHP 8.3+ с готовым сервером на ReactPHP.
 
 ## Установка
 
@@ -8,49 +8,17 @@ PHP-библиотека для взаимодействия с MCP (Model Conte
 composer require politsin/mcp
 ```
 
-## Быстрый старт
+## Быстрый старт (сервер)
 
-### Создание HTTP клиента
+Минимальный сервер на ReactPHP (HTTP Stream и SSE), классическая регистрация тулзов и ресурсов:
 
-```php
-<?php
+См. примеры в `examples/`:
+- `examples/Cmd/ReactServer.php` — запуск сервера, конфигурация.
+- `examples/Tools/FooTool.php` — классовая тулза с параметром `n` (optional).
+- `examples/nginx.conf` — пример проксирования nginx для `/mcp/http` и `/mcp/sse`.
+- `examples/Controller/SseTestController.php` — простая страница для проверки SSE (`/test/sse`).
 
-use Politsin\Mcp\Client\McpClientFactory;
-
-// Создаем HTTP клиент
-$client = McpClientFactory::createHttpClient('https://your-mcp-server.com');
-
-// Инициализируем соединение
-$response = $client->initialize([
-    'protocolVersion' => '2024-11-05',
-    'clientInfo' => [
-        'name' => 'My Client',
-        'version' => '1.0.0',
-    ],
-]);
-
-if ($response->isSuccess()) {
-    echo "Соединение установлено\n";
-}
-
-// Получаем список инструментов
-$toolsResponse = $client->listTools();
-if ($toolsResponse->isSuccess()) {
-    $tools = $toolsResponse->getResult()['tools'] ?? [];
-    foreach ($tools as $tool) {
-        echo "Инструмент: {$tool['name']}\n";
-    }
-}
-
-// Вызываем инструмент
-$callResponse = $client->callTool('foo', ['param' => 'value']);
-if ($callResponse->isSuccess()) {
-    $result = $callResponse->getResult();
-    echo "Результат: " . json_encode($result) . "\n";
-}
-```
-
-### Интеграция с Symfony
+### Интеграция с приложением (Symfony)
 
 Создайте сервис в `config/services.yaml`:
 
@@ -117,7 +85,30 @@ class McpController extends AbstractController
 }
 ```
 
-### Обработка ошибок
+### Что уже реализовано
+
+- ReactPHP сервер (`Politsin\Mcp\Server\ReactMcpServer`) с эндпоинтами:
+  - Streamable HTTP: `POST /mcp/http`
+  - SSE: `GET /mcp/sse`, `POST /mcp/sse/message?sessionId=...`
+- Инициализация (initialize) с поддержкой относительных/абсолютных endpoints.
+- Тулы (tools):
+  - Список тулзов (tools/list) — экспорт `name`, `description`, `inputSchema` (JSON Schema object).
+  - Вызов тулзы (tools/call) — поддержка callable и классовых тулзов через `ToolInterface`.
+  - Поиск тулзы по `getName()`, FQCN и исходному ключу конфигурации.
+- Ресурсы (resources): resources/list, resources/read.
+- Ping (ping).
+- SSE: трансляция ответов tools/* в открытый поток по sessionId, keep-alive, CORS.
+
+### Параметры конфигурации (`McpConfig::create`)
+
+- `tools`: массив тулзов — callable | объект `ToolInterface` | класс `ToolInterface` | `name => def`.
+- `resources`: массив ресурсов (`uri => string|array|object`).
+- `basePath`: базовый путь (по умолчанию `/mcp`).
+- `logFile`, `logLevel`: логирование (`error|info|debug`).
+- `http2Enabled`: признак HTTP/2.
+- `sessionStorage`, `sessionPath`: хранение сессий (по умолчанию file в /tmp).
+- `absoluteEndpoints`: если TRUE — в манифесте/initialize будут абсолютные URL.
+- `endpointBaseUrl`: базовый URL для абсолютных endpoints (опционально).
 
 ```php
 <?php
@@ -140,25 +131,16 @@ try {
 }
 ```
 
-## Архитектура
+## ToolInterface (классовые тулзы)
 
-### Основные компоненты
-
-- **McpClientInterface** - основной интерфейс для взаимодействия с MCP сервером
-- **McpClient** - реализация клиента
-- **TransportInterface** - интерфейс для транспортного слоя
-- **HttpTransport** - HTTP транспорт
-- **McpRequest/McpResponse** - DTO для запросов и ответов
-- **McpException** - иерархия исключений
-
-### Поддерживаемые операции
-
-- `initialize()` - инициализация соединения
-- `listTools()` - получение списка инструментов
-- `callTool()` - вызов инструмента
-- `listResources()` - получение списка ресурсов
-- `ping()` - проверка соединения
-- `sendRequest()` - отправка произвольного запроса
+```php
+interface ToolInterface {
+  public function getName(): string;
+  public function getDescription(): string;
+  public function getInputSchema(): array; // JSON Schema object
+  public function execute(array $arguments): mixed;
+}
+```
 
 ## Тестирование
 

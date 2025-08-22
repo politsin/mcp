@@ -806,7 +806,8 @@ final class ReactMcpServer {
                       break;
                     }
                   }
-                  catch (\Throwable $e) {}
+                  catch (\Throwable $e) {
+                  }
                 }
                 if (is_string($key) && $key === $name) {
                   $toolDef = $def;
