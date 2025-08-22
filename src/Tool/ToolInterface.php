@@ -21,8 +21,6 @@ interface ToolInterface {
 
   /**
    * JSON Schema входных параметров (object; properties: {}, required: []).
-   *
-   * @return array<string, mixed>
    */
   public function getInputSchema(): array;
 

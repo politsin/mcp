@@ -14,6 +14,7 @@ composer require politsin/mcp
 
 См. примеры в `examples/`:
 - `examples/Cmd/ReactServer.php` — запуск сервера, конфигурация.
+- `examples/Cmd/ExampleReactCommand.php` — обезличенная Symfony-команда для запуска сервера.
 - `examples/Tools/FooTool.php` — классовая тулза с параметром `n` (optional).
 - `examples/nginx.conf` — пример проксирования nginx для `/mcp/http` и `/mcp/sse`.
 - `examples/Controller/SseTestController.php` — простая страница для проверки SSE (`/test/sse`).
