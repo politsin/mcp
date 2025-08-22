@@ -741,6 +741,56 @@ final class ReactMcpServer {
               }
             }
           }
+          elseif ($rpcMethod === 'resources/list') {
+            $resourcesOut = [];
+            foreach ($this->config->resources as $key => $value) {
+              $isStructured = is_array($value) || is_object($value);
+              $resourcesOut[] = [
+                'uri' => (string) $key,
+                'name' => $key === 'hello_world' ? 'Hello World' : ('Resource ' . (string) $key),
+                'description' => $key === 'random_numbers' ? 'Array of 5 random ints' : 'Sample resource',
+                'mimeType' => $isStructured ? 'application/json' : 'text/plain',
+              ];
+            }
+            $response = [
+              'jsonrpc' => '2.0',
+              'id' => $id,
+              'result' => ['resources' => $resourcesOut],
+            ];
+          }
+          elseif ($rpcMethod === 'resources/read') {
+            $paramsIn = isset($payload['params']) && is_array($payload['params']) ? $payload['params'] : [];
+            $uri = (string) ($paramsIn['uri'] ?? '');
+            if ($uri === '' || !array_key_exists($uri, $this->config->resources)) {
+              $response = [
+                'jsonrpc' => '2.0',
+                'id' => $id,
+                'error' => [
+                  'code' => $uri === '' ? -32602 : -32004,
+                  'message' => $uri === '' ? 'Param uri is required' : ('Resource not found: ' . $uri),
+                ],
+              ];
+            }
+            else {
+              $val = $this->config->resources[$uri];
+              $isStructured = is_array($val) || is_object($val);
+              $mime = $isStructured ? 'application/json' : 'text/plain';
+              $text = $isStructured ? json_encode($val, JSON_UNESCAPED_UNICODE) : (string) $val;
+              $response = [
+                'jsonrpc' => '2.0',
+                'id' => $id,
+                'result' => [
+                  'contents' => [
+                    [
+                      'uri' => $uri,
+                      'mimeType' => $mime,
+                      'text' => $text,
+                    ],
+                  ],
+                ],
+              ];
+            }
+          }
           elseif ($rpcMethod === 'notifications/initialized') {
             $response = [
               'jsonrpc' => '2.0',
@@ -851,6 +901,56 @@ final class ReactMcpServer {
                   ],
                 ];
               }
+            }
+          }
+          elseif ($rpcMethod === 'resources/list') {
+            $resourcesOut = [];
+            foreach ($this->config->resources as $key => $value) {
+              $isStructured = is_array($value) || is_object($value);
+              $resourcesOut[] = [
+                'uri' => (string) $key,
+                'name' => $key === 'hello_world' ? 'Hello World' : ('Resource ' . (string) $key),
+                'description' => $key === 'random_numbers' ? 'Array of 5 random ints' : 'Sample resource',
+                'mimeType' => $isStructured ? 'application/json' : 'text/plain',
+              ];
+            }
+            $response = [
+              'jsonrpc' => '2.0',
+              'id' => $id,
+              'result' => ['resources' => $resourcesOut],
+            ];
+          }
+          elseif ($rpcMethod === 'resources/read') {
+            $paramsIn = isset($payload['params']) && is_array($payload['params']) ? $payload['params'] : [];
+            $uri = (string) ($paramsIn['uri'] ?? '');
+            if ($uri === '' || !array_key_exists($uri, $this->config->resources)) {
+              $response = [
+                'jsonrpc' => '2.0',
+                'id' => $id,
+                'error' => [
+                  'code' => $uri === '' ? -32602 : -32004,
+                  'message' => $uri === '' ? 'Param uri is required' : ('Resource not found: ' . $uri),
+                ],
+              ];
+            }
+            else {
+              $val = $this->config->resources[$uri];
+              $isStructured = is_array($val) || is_object($val);
+              $mime = $isStructured ? 'application/json' : 'text/plain';
+              $text = $isStructured ? json_encode($val, JSON_UNESCAPED_UNICODE) : (string) $val;
+              $response = [
+                'jsonrpc' => '2.0',
+                'id' => $id,
+                'result' => [
+                  'contents' => [
+                    [
+                      'uri' => $uri,
+                      'mimeType' => $mime,
+                      'text' => $text,
+                    ],
+                  ],
+                ],
+              ];
             }
           }
           elseif ($rpcMethod === 'notifications/initialized') {
