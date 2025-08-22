@@ -507,8 +507,8 @@ final class ReactMcpServer {
                   return new ReactResponse(200, $headers, $stream);
         }
 
-        // /mcp/sse/message — обработка POST сообщений для существующих сессий.
-        if ($method === 'POST' && str_starts_with($path, $base . '/sse/message')) {
+        // /mcp/sse/message и /sse/message — обработка POST сообщений для существующих сессий.
+        if ($method === 'POST' && (str_starts_with($path, $base . '/sse/message') || $path === '/sse/message')) {
           $query = $request->getUri()->getQuery();
           $params = [];
           if ($query !== '') {
