@@ -153,9 +153,9 @@ final class ReactMcpServer {
           'serverInfo' => ['name' => 'Politsin MCP Server', 'version' => '1.0.0'],
           'capabilities' => ['tools' => ['listChanged' => TRUE]],
           'endpoints' => [
-            'messages' => 'sse', 
+            'messages' => 'sse',
             'requests' => 'mcp/requests',
-            'http' => 'mcp/http'
+            'http' => 'mcp/http',
           ],
           'tools' => $toolsOut,
         ];
@@ -238,6 +238,8 @@ final class ReactMcpServer {
             $rpcMethod = (string) ($msg['method'] ?? '');
             $id = $msg['id'] ?? NULL;
 
+            $this->write('[JSON-RPC] method=' . $rpcMethod . ' id=' . ($id ?: 'null') . ' ip=' . $clientIp);
+
             if ($rpcMethod === 'initialize') {
               $params = isset($msg['params']) && is_array($msg['params']) ? $msg['params'] : [];
               $proto = (string) ($params['protocolVersion'] ?? '');
@@ -284,6 +286,8 @@ final class ReactMcpServer {
 
             // tools/list — перечислить доступные тулзы.
             elseif ($rpcMethod === 'tools/list') {
+              $this->write('[TOOLS-LIST] requested by ip=' . $clientIp . ' ua=' . $ua);
+
               $toolsOut = [];
               foreach (array_keys($this->config->tools) as $toolName) {
                 $toolsOut[] = [
@@ -297,8 +301,11 @@ final class ReactMcpServer {
                   ],
                 ];
               }
+
               $resp = ['jsonrpc' => '2.0', 'id' => $id, 'result' => ['tools' => $toolsOut]];
               $responses[] = $resp;
+
+              $this->write('[TOOLS-LIST] returned ' . count($toolsOut) . ' tools');
             }
 
             // tools/call — вызвать зарегистрированный тул.
