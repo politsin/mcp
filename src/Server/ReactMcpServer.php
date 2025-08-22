@@ -85,7 +85,7 @@ final class ReactMcpServer {
         $cors = [
           'Access-Control-Allow-Origin' => '*',
           'Access-Control-Allow-Credentials' => 'false',
-          'Access-Control-Allow-Headers' => 'Content-Type, Authorization, X-Requested-With, Accept, Origin, X-API-Key',
+          'Access-Control-Allow-Headers' => 'Content-Type, Authorization, X-Requested-With, Accept, Origin, X-API-Key, Cache-Control, Pragma, DNT, User-Agent, X-Requested-With, If-Modified-Since, Cache-Control, Content-Type, Range',
           'Access-Control-Allow-Methods' => 'GET, POST, OPTIONS',
           'Vary' => 'Origin, Accept',
         ];
