@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Politsin\Mcp\Server;
 
 use Politsin\Mcp\Config\McpConfig;
+use Politsin\Mcp\Session\SessionManager;
 use React\EventLoop\Loop;
 use React\Http\HttpServer;
 use React\Http\Message\Response as ReactResponse;
@@ -43,8 +44,16 @@ final class ReactMcpServer {
    */
   private $outputWriter = NULL;
 
+  /**
+   * Менеджер сессий.
+   *
+   * @var \Politsin\Mcp\Session\SessionManager
+   */
+  private SessionManager $sessionManager;
+
   public function __construct(McpConfig $config) {
     $this->config = $config;
+    $this->sessionManager = new SessionManager($config);
   }
 
   /**
@@ -390,6 +399,13 @@ final class ReactMcpServer {
           $sessionId = uniqid('mcp_', TRUE);
         }
 
+        // Создаем сессию.
+        $this->sessionManager->createSession($sessionId, [
+          'client_ip' => $clientIp,
+          'user_agent' => $ua,
+          'created_at' => date('Y-m-d H:i:s'),
+        ]);
+
         // Отправляем начальные кадры в futureTick.
         Loop::futureTick(function () use ($stream, $sessionId) {
           // Рекомендуем интервал реконнекта.
@@ -516,12 +532,23 @@ final class ReactMcpServer {
           return $this->createResponse(400, ['Content-Type' => 'text/plain; charset=utf-8'], 'Missing sessionId. Expected POST to /sse to initiate new one');
         }
 
+        // Проверяем существование сессии.
+        if (!$this->sessionManager->sessionExists($sessionId)) {
+          return $this->createResponse(404, ['Content-Type' => 'application/json; charset=utf-8'], json_encode(['error' => 'session_not_found'], JSON_UNESCAPED_UNICODE));
+        }
+
         $raw = (string) $request->getBody();
         $payload = json_decode($raw, TRUE);
 
         if ($this->config->logLevel === 'debug') {
           $this->write('[SSE-MSG] session=' . $sessionId . ' payload=' . $raw);
         }
+
+        // Обновляем активность сессии.
+        $this->sessionManager->updateSession($sessionId, [
+          'last_message' => $payload,
+          'message_count' => ($this->sessionManager->getSession($sessionId)['data']['message_count'] ?? 0) + 1,
+        ]);
 
         // Простая обработка сообщений - возвращаем echo.
         $response = [
@@ -530,10 +557,27 @@ final class ReactMcpServer {
           'result' => [
             'echo' => $payload,
             'sessionId' => $sessionId,
+            'sessionData' => $this->sessionManager->getSession($sessionId),
           ],
         ];
 
         return $this->createResponse(200, ['Content-Type' => 'application/json; charset=utf-8'], json_encode($response, JSON_UNESCAPED_UNICODE));
+      }
+
+      // /mcp/sessions — статистика сессий.
+      if ($method === 'GET' && $path === $base . '/sessions') {
+        $stats = $this->sessionManager->getSessionStats();
+        return $this->createResponse(200, ['Content-Type' => 'application/json; charset=utf-8'], json_encode($stats, JSON_UNESCAPED_UNICODE));
+      }
+
+      // /mcp/sessions/{sessionId} — информация о конкретной сессии.
+      if ($method === 'GET' && preg_match('#^' . preg_quote($base . '/sessions/', '#') . '([a-f0-9]+)$#', $path, $matches)) {
+        $sessionId = $matches[1];
+        $session = $this->sessionManager->getSession($sessionId);
+        if ($session === NULL) {
+          return $this->createResponse(404, ['Content-Type' => 'application/json; charset=utf-8'], json_encode(['error' => 'session_not_found'], JSON_UNESCAPED_UNICODE));
+        }
+        return $this->createResponse(200, ['Content-Type' => 'application/json; charset=utf-8'], json_encode($session, JSON_UNESCAPED_UNICODE));
       }
 
       if ($this->config->logLevel === 'debug') {

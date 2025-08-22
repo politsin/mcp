@@ -29,6 +29,21 @@ final class McpConfig {
 
   /** @var bool */
   public bool $http2Enabled = FALSE;
+
+  /** @var string */
+  public string $sessionStorage = 'file';
+
+  /** @var string|null */
+  public ?string $sessionPath = NULL;
+
+  /** @var string|null */
+  public ?string $redisHost = NULL;
+
+  /** @var int */
+  public int $redisPort = 6379;
+
+  /** @var int */
+  public int $redisDb = 0;
   // phpcs:enable
 
   /**
@@ -48,8 +63,18 @@ final class McpConfig {
    *   Уровень логирования: 'error' | 'info' | 'debug'.
    * @param bool $http2Enabled
    *   Включить поддержку HTTP/2 заголовков.
+   * @param string $sessionStorage
+   *   Тип хранилища сессий: 'file' | 'redis'.
+   * @param string|null $sessionPath
+   *   Путь для файловых сессий (по умолчанию /tmp/mcp-sessions).
+   * @param string|null $redisHost
+   *   Хост Redis для сессий.
+   * @param int $redisPort
+   *   Порт Redis для сессий.
+   * @param int $redisDb
+   *   База данных Redis для сессий.
    */
-  public function __construct(array $tools = [], array $resources = [], ?callable $authCallback = NULL, string $basePath = '/mcp', ?string $logFile = NULL, string $logLevel = 'info', bool $http2Enabled = FALSE) {
+  public function __construct(array $tools = [], array $resources = [], ?callable $authCallback = NULL, string $basePath = '/mcp', ?string $logFile = NULL, string $logLevel = 'info', bool $http2Enabled = FALSE, string $sessionStorage = 'file', ?string $sessionPath = NULL, ?string $redisHost = NULL, int $redisPort = 6379, int $redisDb = 0) {
     $this->tools = $tools;
     $this->resources = $resources;
     $this->authCallback = $authCallback;
@@ -57,6 +82,11 @@ final class McpConfig {
     $this->logFile = $logFile;
     $this->logLevel = $logLevel;
     $this->http2Enabled = $http2Enabled;
+    $this->sessionStorage = $sessionStorage;
+    $this->sessionPath = $sessionPath ?? '/tmp/mcp-sessions';
+    $this->redisHost = $redisHost;
+    $this->redisPort = $redisPort;
+    $this->redisDb = $redisDb;
   }
 
   /**
@@ -70,7 +100,12 @@ final class McpConfig {
       $options['basePath'] ?? '/mcp',
       $options['logFile'] ?? NULL,
       $options['logLevel'] ?? 'info',
-      $options['http2Enabled'] ?? FALSE
+      $options['http2Enabled'] ?? FALSE,
+      $options['sessionStorage'] ?? 'file',
+      $options['sessionPath'] ?? NULL,
+      $options['redisHost'] ?? NULL,
+      $options['redisPort'] ?? 6379,
+      $options['redisDb'] ?? 0
     );
   }
 
