@@ -386,7 +386,7 @@ final class ReactMcpServer {
             'tools' => $toolsOut,
           ];
           $body = json_encode($manifest, JSON_UNESCAPED_UNICODE);
-          return new ReactResponse(200, ['Content-Type' => 'application/json; charset=utf-8'], $body);
+          return $this->createResponse(200, ['Content-Type' => 'application/json; charset=utf-8'], $body);
         }
 
         $stream = new ThroughStream();
