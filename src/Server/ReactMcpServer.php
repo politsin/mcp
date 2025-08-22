@@ -75,16 +75,17 @@ final class ReactMcpServer {
   }
 
   /**
-   * Создает ответ с автоматическими CORS заголовками.
+   * Создает ответ с максимально разрешающими CORS заголовками для всех запросов.
    */
   private function createResponse(int $statusCode, array $headers = [], $body = ''): ReactResponse {
+    // Максимально разрешающие CORS заголовки - разрешаем ВСЁ
     $cors = [
       'Access-Control-Allow-Origin' => '*',
-      'Access-Control-Allow-Headers' => 'Content-Type, mcp-session-id, mcp-protocol-version',
-      'Access-Control-Allow-Methods' => 'GET, POST, OPTIONS',
+      'Access-Control-Allow-Methods' => '*',
+      'Access-Control-Allow-Headers' => '*',
       'Access-Control-Allow-Credentials' => 'false',
-      'Access-Control-Expose-Headers' => 'mcp-session-id',
-      'Access-Control-Max-Age' => '0',
+      'Access-Control-Expose-Headers' => '*',
+      'Access-Control-Max-Age' => '86400',
     ];
 
     $allHeaders = [...$cors, ...$headers];
@@ -119,18 +120,10 @@ final class ReactMcpServer {
         // Получаем Origin для preflight запросов.
         $originHeader = $request->getHeaderLine('Origin');
 
-                // Preflight OPTIONS.
+                // Preflight OPTIONS - отвечаем на ВСЕ OPTIONS запросы с максимальными разрешениями.
       if ($method === 'OPTIONS') {
-        $acrHeaders = $request->getHeaderLine('Access-Control-Request-Headers');
-        $acrMethod = $request->getHeaderLine('Access-Control-Request-Method');
-        $headers = [];
-        if ($acrHeaders !== '') {
-          $headers['Access-Control-Allow-Headers'] = $acrHeaders;
-        }
-        if ($acrMethod !== '') {
-          $headers['Access-Control-Allow-Methods'] = $acrMethod;
-        }
-        return $this->createResponse(204, $headers);
+        // Разрешаем абсолютно всё что запрашивается
+        return $this->createResponse(204, []);
       }
 
         // Логи запросов при info/debug.
@@ -695,9 +688,11 @@ final class ReactMcpServer {
       }
 
       if ($this->config->logLevel === 'debug') {
-        $this->write('[RESP] 404 not_found');
+        $this->write('[RESP] 404 not_found - but with CORS');
       }
-        return $this->createResponse(404, ['Content-Type' => 'application/json; charset=utf-8'], json_encode(['error' => 'not_found'], JSON_UNESCAPED_UNICODE));
+      
+      // На ВСЕ запросы (даже 404) отвечаем с полными CORS заголовками
+      return $this->createResponse(404, ['Content-Type' => 'application/json; charset=utf-8'], json_encode(['error' => 'not_found', 'message' => 'Endpoint not found, but CORS headers are provided'], JSON_UNESCAPED_UNICODE));
     });
 
     return $this->server;
