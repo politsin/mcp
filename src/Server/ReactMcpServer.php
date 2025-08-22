@@ -379,24 +379,29 @@ final class ReactMcpServer {
               $name = (string) ($paramsIn['name'] ?? ($paramsIn['tool'] ?? ''));
               $arguments = isset($paramsIn['arguments']) && is_array($paramsIn['arguments']) ? $paramsIn['arguments'] : [];
 
-              // Поддержка поиска тулзы по имени из ToolInterface::getName().
+              // Поддержка поиска тулзы по имени (getName()) и по полному имени класса,
+              // а также по строковому ключу массива конфигурации.
               $toolDef = $this->config->tools[$name] ?? NULL;
               if ($toolDef === NULL) {
                 foreach ($this->config->tools as $key => $def) {
-                  if (is_object($def) && $def instanceof ToolInterface && $def->getName() === $name) {
+                  if (is_object($def) && $def instanceof ToolInterface && ($def->getName() === $name || get_class($def) === $name)) {
                     $toolDef = $def;
                     break;
                   }
                   if (is_string($def) && class_exists($def) && is_subclass_of($def, ToolInterface::class)) {
                     try {
                       $inst = new $def();
-                      if ($inst->getName() === $name) {
+                      if ($inst->getName() === $name || $def === $name) {
                         $toolDef = $inst;
                         break;
                       }
                     }
                     catch (\Throwable $e) {
                     }
+                  }
+                  if (is_string($key) && $key === $name) {
+                    $toolDef = $def;
+                    break;
                   }
                 }
               }
