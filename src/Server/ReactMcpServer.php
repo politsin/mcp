@@ -79,94 +79,274 @@ final class ReactMcpServer {
         $serverParams = $request->getServerParams();
         $clientIp = $request->getHeaderLine('X-Forwarded-For') ?: $request->getHeaderLine('X-Real-IP') ?: ($serverParams['REMOTE_ADDR'] ?? 'unknown');
         $ua = $request->getHeaderLine('User-Agent') ?: 'unknown';
+
+        // CORS headers (на все ответы) с учётом Origin.
+        $originHeader = $request->getHeaderLine('Origin');
+        $allowOrigin = $originHeader !== '' ? $originHeader : '*';
+        $allowCredentials = $originHeader !== '' ? 'true' : 'false';
+        $cors = [
+          'Access-Control-Allow-Origin' => $allowOrigin,
+          'Access-Control-Allow-Credentials' => $allowCredentials,
+          'Access-Control-Allow-Headers' => 'Content-Type, Authorization, X-Requested-With, Accept, Origin, X-API-Key',
+          'Access-Control-Allow-Methods' => 'GET, POST, OPTIONS',
+          'Vary' => 'Origin, Accept',
+        ];
+
+        // Preflight OPTIONS.
+        if ($method === 'OPTIONS') {
+          $acrHeaders = $request->getHeaderLine('Access-Control-Request-Headers');
+          $acrMethod = $request->getHeaderLine('Access-Control-Request-Method');
+          $preflight = $cors;
+          if ($acrHeaders !== '') {
+            $preflight['Access-Control-Allow-Headers'] = $acrHeaders;
+          }
+          if ($acrMethod !== '') {
+            $preflight['Access-Control-Allow-Methods'] = $acrMethod;
+          }
+          $preflight['Access-Control-Max-Age'] = '600';
+          return new ReactResponse(204, [...$preflight, 'Content-Type' => 'application/json']);
+        }
+
         // Логи запросов при info/debug.
-      if ($this->config->logLevel === 'info' || $this->config->logLevel === 'debug') {
-        $this->write(sprintf('[REQ] ip=%s ua=%s %s %s', $clientIp, $ua, $method, $path));
-      }
+        if ($this->config->logLevel === 'info' || $this->config->logLevel === 'debug') {
+          $this->write(sprintf('[REQ] ip=%s ua=%s %s %s', $clientIp, $ua, $method, $path));
+        }
 
         // /mcp — JSON манифест (совместимость клиентов).
-      if ($method === 'GET' && $path === $base) {
-        // Формируем список tools для манифеста.
-        $toolsOut = [];
-        foreach (array_keys($this->config->tools) as $toolName) {
-          $toolsOut[] = [
-            'name' => $toolName,
-            'description' => 'Tool ' . $toolName,
-            'inputSchema' => [
-              'type' => 'object',
-              'properties' => [],
-              'required' => [],
-              'additionalProperties' => FALSE,
-            ],
-          ];
-        }
-
-        $manifest = [
-          'protocolVersion' => '2025-06-18',
-          'serverInfo' => ['name' => 'Politsin MCP Server', 'version' => '1.0.0'],
-          'capabilities' => ['tools' => new \stdClass(), 'prompts' => new \stdClass(), 'resources' => new \stdClass()],
-          'endpoints' => ['messages' => 'sse', 'requests' => 'mcp/requests'],
-          'tools' => $toolsOut,
-        ];
-        return ReactResponse::json($manifest);
-      }
-
-        // /mcp/api — обычные GET‑запросы, возвращаем JSON с query‑параметрами.
-      if ($method === 'GET' && $path === $base . '/api') {
-        $query = $request->getUri()->getQuery();
-        $params = [];
-        if ($query !== '') {
-          parse_str($query, $params);
-        }
-        if ($this->config->logLevel === 'debug') {
-          $this->write('[API] GET params=' . json_encode($params));
-        }
-        return ReactResponse::json(['ok' => TRUE, 'query' => $params]);
-      }
-
-      // /mcp/http — JSON-RPC по POST: базовая поддержка initialize.
-      if ($method === 'POST' && $path === $base . '/http') {
-        $raw = (string) $request->getBody();
-        $payload = json_decode($raw, TRUE);
-        if (is_array($payload)) {
-          $rpcMethod = (string) ($payload['method'] ?? '');
-          $id = $payload['id'] ?? NULL;
-          if ($rpcMethod === 'initialize') {
-            $params = isset($payload['params']) && is_array($payload['params']) ? $payload['params'] : [];
-            $proto = (string) ($params['protocolVersion'] ?? '');
-            $client = isset($params['clientInfo']) && is_array($params['clientInfo']) ? $params['clientInfo'] : [];
-            $clientName = (string) ($client['name'] ?? '');
-            $clientVer = (string) ($client['version'] ?? '');
-            $caps = isset($params['capabilities']) && is_array($params['capabilities']) ? array_keys($params['capabilities']) : [];
-            $this->write('[INIT] ip=' . $clientIp . ' ua=' . $ua . ' protocol=' . ($proto ?: 'n/a') . ' client=' . ($clientName ?: 'n/a') . ' v=' . ($clientVer ?: 'n/a') . ' caps=' . json_encode($caps));
-
-            $result = [
-              'jsonrpc' => '2.0',
-              'id' => $id,
-              'result' => [
-                'protocolVersion' => $proto !== '' ? $proto : '2024-11-05',
-                'serverInfo' => ['name' => 'Politsin MCP Server', 'version' => '1.0.0'],
-                'capabilities' => [
-                  'tools' => new \stdClass(),
-                  'prompts' => new \stdClass(),
-                  'resources' => new \stdClass(),
-                ],
-                'session' => ['id' => 'simple-mcp-session'],
-                'endpoints' => ['messages' => 'sse', 'requests' => 'mcp/requests'],
+        if ($method === 'GET' && $path === $base) {
+          // Формируем список tools для манифеста.
+          $toolsOut = [];
+          foreach (array_keys($this->config->tools) as $toolName) {
+            $toolsOut[] = [
+              'name' => $toolName,
+              'description' => 'Tool ' . $toolName,
+              'inputSchema' => [
+                'type' => 'object',
+                'properties' => [],
+                'required' => [],
+                'additionalProperties' => FALSE,
               ],
             ];
-            $body = json_encode($result, JSON_UNESCAPED_UNICODE) . "\n";
-            return new ReactResponse(200, ['Content-Type' => 'application/x-ndjson; charset=utf-8'], $body);
           }
 
-          // Ping — проверка связи.
-          if ($rpcMethod === 'ping') {
-            $resp = ['jsonrpc' => '2.0', 'id' => $id, 'result' => new \stdClass()];
-            return new ReactResponse(200, ['Content-Type' => 'application/x-ndjson; charset=utf-8'], json_encode($resp, JSON_UNESCAPED_UNICODE) . "\n");
-          }
+          $manifest = [
+            'protocolVersion' => '2025-06-18',
+            'serverInfo' => ['name' => 'Politsin MCP Server', 'version' => '1.0.0'],
+            'capabilities' => ['tools' => new \stdClass(), 'prompts' => new \stdClass(), 'resources' => new \stdClass()],
+            'endpoints' => ['messages' => 'sse', 'requests' => 'mcp/requests'],
+            'tools' => $toolsOut,
+          ];
+          return new ReactResponse(200, [...$cors, 'Content-Type' => 'application/json; charset=utf-8'], json_encode($manifest, JSON_UNESCAPED_UNICODE));
+        }
 
-          // tools/list — перечислить доступные тулзы из конфигурации.
-          if ($rpcMethod === 'tools/list') {
+        // /mcp/api — обычные GET‑запросы, возвращаем JSON с query‑параметрами.
+        if ($method === 'GET' && $path === $base . '/api') {
+          $query = $request->getUri()->getQuery();
+          $params = [];
+          if ($query !== '') {
+            parse_str($query, $params);
+          }
+          if ($this->config->logLevel === 'debug') {
+            $this->write('[API] GET params=' . json_encode($params));
+          }
+          $body = json_encode(['ok' => TRUE, 'query' => $params], JSON_UNESCAPED_UNICODE);
+          return new ReactResponse(200, [...$cors, 'Content-Type' => 'application/json; charset=utf-8'], $body);
+        }
+
+        // /mcp/http — JSON-RPC по POST: базовая поддержка initialize.
+        if ($method === 'POST' && $path === $base . '/http') {
+          $raw = (string) $request->getBody();
+          $payload = json_decode($raw, TRUE);
+          if (is_array($payload)) {
+            $rpcMethod = (string) ($payload['method'] ?? '');
+            $id = $payload['id'] ?? NULL;
+            if ($rpcMethod === 'initialize') {
+              $params = isset($payload['params']) && is_array($payload['params']) ? $payload['params'] : [];
+              $proto = (string) ($params['protocolVersion'] ?? '');
+              $client = isset($params['clientInfo']) && is_array($params['clientInfo']) ? $params['clientInfo'] : [];
+              $clientName = (string) ($client['name'] ?? '');
+              $clientVer = (string) ($client['version'] ?? '');
+              $caps = isset($params['capabilities']) && is_array($params['capabilities']) ? array_keys($params['capabilities']) : [];
+              $this->write('[INIT] ip=' . $clientIp . ' ua=' . $ua . ' protocol=' . ($proto ?: 'n/a') . ' client=' . ($clientName ?: 'n/a') . ' v=' . ($clientVer ?: 'n/a') . ' caps=' . json_encode($caps));
+
+              $result = [
+                'jsonrpc' => '2.0',
+                'id' => $id,
+                'result' => [
+                  'protocolVersion' => $proto !== '' ? $proto : '2024-11-05',
+                  'serverInfo' => ['name' => 'Politsin MCP Server', 'version' => '1.0.0'],
+                  'capabilities' => [
+                    'tools' => new \stdClass(),
+                    'prompts' => new \stdClass(),
+                    'resources' => new \stdClass(),
+                  ],
+                  'session' => ['id' => 'simple-mcp-session'],
+                  'endpoints' => ['messages' => 'sse', 'requests' => 'mcp/requests'],
+                ],
+              ];
+              $body = json_encode($result, JSON_UNESCAPED_UNICODE) . "\n";
+              return new ReactResponse(200, ['Content-Type' => 'application/x-ndjson; charset=utf-8'], $body);
+            }
+
+            // Ping — проверка связи.
+            if ($rpcMethod === 'ping') {
+              $resp = ['jsonrpc' => '2.0', 'id' => $id, 'result' => new \stdClass()];
+              return new ReactResponse(200, ['Content-Type' => 'application/x-ndjson; charset=utf-8'], json_encode($resp, JSON_UNESCAPED_UNICODE) . "\n");
+            }
+
+            // tools/list — перечислить доступные тулзы из конфигурации.
+            if ($rpcMethod === 'tools/list') {
+              $toolsOut = [];
+              foreach (array_keys($this->config->tools) as $toolName) {
+                $toolsOut[] = [
+                  'name' => $toolName,
+                  'description' => 'Tool ' . $toolName,
+                  'inputSchema' => [
+                    'type' => 'object',
+                    'properties' => [],
+                    'required' => [],
+                    'additionalProperties' => FALSE,
+                  ],
+                ];
+              }
+              $resp = ['jsonrpc' => '2.0', 'id' => $id, 'result' => ['tools' => $toolsOut]];
+              return new ReactResponse(200, ['Content-Type' => 'application/x-ndjson; charset=utf-8'], json_encode($resp, JSON_UNESCAPED_UNICODE) . "\n");
+            }
+
+            // tools/call — вызвать зарегистрированный тул.
+            if ($rpcMethod === 'tools/call') {
+              $paramsIn = isset($payload['params']) && is_array($payload['params']) ? $payload['params'] : [];
+              $name = (string) ($paramsIn['name'] ?? ($paramsIn['tool'] ?? ''));
+              $arguments = isset($paramsIn['arguments']) && is_array($paramsIn['arguments']) ? $paramsIn['arguments'] : [];
+              if ($name === '' || !isset($this->config->tools[$name])) {
+                $err = [
+                  'jsonrpc' => '2.0',
+                  'id' => $id,
+                  'error' => [
+                    'code' => -32602,
+                    'message' => 'Unknown tool: ' . $name,
+                  ],
+                ];
+                return new ReactResponse(200, ['Content-Type' => 'application/x-ndjson; charset=utf-8'], json_encode($err, JSON_UNESCAPED_UNICODE) . "\n");
+              }
+              try {
+                $callable = $this->config->tools[$name];
+                $resultVal = empty($arguments) ? $callable() : $callable($arguments);
+                $resultJson = json_encode($resultVal, JSON_UNESCAPED_UNICODE | JSON_PRETTY_PRINT);
+                $resp = [
+                  'jsonrpc' => '2.0',
+                  'id' => $id,
+                  'result' => [
+                    'content' => [['type' => 'text', 'text' => $resultJson]],
+                    'isError' => FALSE,
+                  ],
+                ];
+                return new ReactResponse(200, ['Content-Type' => 'application/x-ndjson; charset=utf-8'], json_encode($resp, JSON_UNESCAPED_UNICODE) . "\n");
+              }
+              catch (\Throwable $e) {
+                $err = [
+                  'jsonrpc' => '2.0',
+                  'id' => $id,
+                  'error' => [
+                    'code' => -32000,
+                    'message' => $e->getMessage(),
+                  ],
+                ];
+                return new ReactResponse(200, ['Content-Type' => 'application/x-ndjson; charset=utf-8'], json_encode($err, JSON_UNESCAPED_UNICODE) . "\n");
+              }
+            }
+
+            // resources/list — список доступных ресурсов.
+            if ($rpcMethod === 'resources/list') {
+              $resourcesOut = [];
+              foreach ($this->config->resources as $key => $value) {
+                $isStructured = is_array($value) || is_object($value);
+                $resourcesOut[] = [
+                  'uri' => (string) $key,
+                  'name' => $key === 'hello_world' ? 'Hello World' : ('Resource ' . (string) $key),
+                  'description' => $key === 'random_numbers' ? 'Array of 5 random ints' : 'Sample resource',
+                  'mimeType' => $isStructured ? 'application/json' : 'text/plain',
+                ];
+              }
+              $resp = ['jsonrpc' => '2.0', 'id' => $id, 'result' => ['resources' => $resourcesOut]];
+              return new ReactResponse(200, ['Content-Type' => 'application/x-ndjson; charset=utf-8'], json_encode($resp, JSON_UNESCAPED_UNICODE) . "\n");
+            }
+
+            // resources/read — чтение контента ресурса по uri.
+            if ($rpcMethod === 'resources/read') {
+              $paramsIn = isset($payload['params']) && is_array($payload['params']) ? $payload['params'] : [];
+              $uri = (string) ($paramsIn['uri'] ?? '');
+              if ($uri === '' || !array_key_exists($uri, $this->config->resources)) {
+                $err = [
+                  'jsonrpc' => '2.0',
+                  'id' => $id,
+                  'error' => [
+                    'code' => -32004,
+                    'message' => 'Resource not found: ' . $uri,
+                  ],
+                ];
+                return new ReactResponse(200, ['Content-Type' => 'application/x-ndjson; charset=utf-8'], json_encode($err, JSON_UNESCAPED_UNICODE) . "\n");
+              }
+              $val = $this->config->resources[$uri];
+              $isStructured = is_array($val) || is_object($val);
+              $mime = $isStructured ? 'application/json' : 'text/plain';
+              $text = $isStructured ? json_encode($val, JSON_UNESCAPED_UNICODE) : (string) $val;
+              $resp = [
+                'jsonrpc' => '2.0',
+                'id' => $id,
+                'result' => [
+                  'contents' => [
+                  [
+                    'uri' => $uri,
+                    'mimeType' => $mime,
+                    'text' => $text,
+                  ],
+                  ],
+                ],
+              ];
+              return new ReactResponse(200, ['Content-Type' => 'application/x-ndjson; charset=utf-8'], json_encode($resp, JSON_UNESCAPED_UNICODE) . "\n");
+            }
+
+            // По умолчанию: пустая строка NDJSON.
+            return new ReactResponse(200, ['Content-Type' => 'application/x-ndjson; charset=utf-8'], "\n");
+          }
+        }
+
+        // /mcp/http — потоковый HTTP (NDJSON).
+        if ($method === 'GET' && $path === $base . '/http') {
+          $stream = new ThroughStream();
+          // Начальный фрейм.
+          Loop::futureTick(function () use ($stream) {
+            $stream->write("{\"type\":\"open\",\"ts\":\"" . date('c') . "\"}\n");
+          });
+          // Периодические пинги.
+          $timer = Loop::addPeriodicTimer(10.0, function () use ($stream) {
+            if (method_exists($stream, 'isWritable') && $stream->isWritable()) {
+              $stream->write("{\"type\":\"ping\",\"ts\":\"" . date('c') . "\"}\n");
+            }
+          });
+          $stream->on('close', function () use ($timer) {
+            Loop::cancelTimer($timer);
+          });
+                  $headers = [
+                    ...$cors,
+                    'Content-Type' => 'application/x-ndjson; charset=utf-8',
+                    'Cache-Control' => 'no-cache',
+                    'Connection' => 'keep-alive',
+                  ];
+                  if ($this->config->logLevel === 'debug') {
+                    $this->write('[HTTP] stream opened ip=' . $clientIp . ' ua=' . $ua);
+                  }
+                  return new ReactResponse(200, $headers, $stream);
+        }
+
+              // /mcp/sse — улучшенный SSE стрим с полной MCP совместимостью.
+        if ($method === 'GET' && $path === $base . '/sse') {
+          // Контент-негациация: если клиент просит JSON, возвращаем манифест.
+          $acceptHeader = $request->getHeaderLine('Accept');
+          $acceptLower = is_string($acceptHeader) ? strtolower($acceptHeader) : '';
+          if ($acceptLower !== '' && str_contains($acceptLower, 'application/json')) {
+            // Формируем список tools для манифеста.
             $toolsOut = [];
             foreach (array_keys($this->config->tools) as $toolName) {
               $toolsOut[] = [
@@ -180,299 +360,148 @@ final class ReactMcpServer {
                 ],
               ];
             }
-            $resp = ['jsonrpc' => '2.0', 'id' => $id, 'result' => ['tools' => $toolsOut]];
-            return new ReactResponse(200, ['Content-Type' => 'application/x-ndjson; charset=utf-8'], json_encode($resp, JSON_UNESCAPED_UNICODE) . "\n");
-          }
 
-          // tools/call — вызвать зарегистрированный тул.
-          if ($rpcMethod === 'tools/call') {
-            $paramsIn = isset($payload['params']) && is_array($payload['params']) ? $payload['params'] : [];
-            $name = (string) ($paramsIn['name'] ?? ($paramsIn['tool'] ?? ''));
-            $arguments = isset($paramsIn['arguments']) && is_array($paramsIn['arguments']) ? $paramsIn['arguments'] : [];
-            if ($name === '' || !isset($this->config->tools[$name])) {
-              $err = [
-                'jsonrpc' => '2.0',
-                'id' => $id,
-                'error' => [
-                  'code' => -32602,
-                  'message' => 'Unknown tool: ' . $name,
-                ],
-              ];
-              return new ReactResponse(200, ['Content-Type' => 'application/x-ndjson; charset=utf-8'], json_encode($err, JSON_UNESCAPED_UNICODE) . "\n");
-            }
-            try {
-              $callable = $this->config->tools[$name];
-              $resultVal = empty($arguments) ? $callable() : $callable($arguments);
-              $resultJson = json_encode($resultVal, JSON_UNESCAPED_UNICODE | JSON_PRETTY_PRINT);
-              $resp = [
-                'jsonrpc' => '2.0',
-                'id' => $id,
-                'result' => [
-                  'content' => [['type' => 'text', 'text' => $resultJson]],
-                  'isError' => FALSE,
-                ],
-              ];
-              return new ReactResponse(200, ['Content-Type' => 'application/x-ndjson; charset=utf-8'], json_encode($resp, JSON_UNESCAPED_UNICODE) . "\n");
-            }
-            catch (\Throwable $e) {
-              $err = [
-                'jsonrpc' => '2.0',
-                'id' => $id,
-                'error' => [
-                  'code' => -32000,
-                  'message' => $e->getMessage(),
-                ],
-              ];
-              return new ReactResponse(200, ['Content-Type' => 'application/x-ndjson; charset=utf-8'], json_encode($err, JSON_UNESCAPED_UNICODE) . "\n");
-            }
-          }
-
-          // resources/list — список доступных ресурсов.
-          if ($rpcMethod === 'resources/list') {
-            $resourcesOut = [];
-            foreach ($this->config->resources as $key => $value) {
-              $isStructured = is_array($value) || is_object($value);
-              $resourcesOut[] = [
-                'uri' => (string) $key,
-                'name' => $key === 'hello_world' ? 'Hello World' : ('Resource ' . (string) $key),
-                'description' => $key === 'random_numbers' ? 'Array of 5 random ints' : 'Sample resource',
-                'mimeType' => $isStructured ? 'application/json' : 'text/plain',
-              ];
-            }
-            $resp = ['jsonrpc' => '2.0', 'id' => $id, 'result' => ['resources' => $resourcesOut]];
-            return new ReactResponse(200, ['Content-Type' => 'application/x-ndjson; charset=utf-8'], json_encode($resp, JSON_UNESCAPED_UNICODE) . "\n");
-          }
-
-          // resources/read — чтение контента ресурса по uri.
-          if ($rpcMethod === 'resources/read') {
-            $paramsIn = isset($payload['params']) && is_array($payload['params']) ? $payload['params'] : [];
-            $uri = (string) ($paramsIn['uri'] ?? '');
-            if ($uri === '' || !array_key_exists($uri, $this->config->resources)) {
-              $err = [
-                'jsonrpc' => '2.0',
-                'id' => $id,
-                'error' => [
-                  'code' => -32004,
-                  'message' => 'Resource not found: ' . $uri,
-                ],
-              ];
-              return new ReactResponse(200, ['Content-Type' => 'application/x-ndjson; charset=utf-8'], json_encode($err, JSON_UNESCAPED_UNICODE) . "\n");
-            }
-            $val = $this->config->resources[$uri];
-            $isStructured = is_array($val) || is_object($val);
-            $mime = $isStructured ? 'application/json' : 'text/plain';
-            $text = $isStructured ? json_encode($val, JSON_UNESCAPED_UNICODE) : (string) $val;
-            $resp = [
-              'jsonrpc' => '2.0',
-              'id' => $id,
-              'result' => [
-                'contents' => [
-                  [
-                    'uri' => $uri,
-                    'mimeType' => $mime,
-                    'text' => $text,
-                  ],
-                ],
-              ],
+            $manifest = [
+              'protocolVersion' => '2025-06-18',
+              'serverInfo' => ['name' => 'Politsin MCP Server', 'version' => '1.0.0'],
+              'capabilities' => ['tools' => new \stdClass(), 'prompts' => new \stdClass(), 'resources' => new \stdClass()],
+              'endpoints' => ['messages' => 'sse', 'requests' => 'mcp/requests'],
+              'tools' => $toolsOut,
             ];
-            return new ReactResponse(200, ['Content-Type' => 'application/x-ndjson; charset=utf-8'], json_encode($resp, JSON_UNESCAPED_UNICODE) . "\n");
+            $body = json_encode($manifest, JSON_UNESCAPED_UNICODE);
+            return new ReactResponse(200, ['Content-Type' => 'application/json; charset=utf-8'], $body);
           }
 
-          // По умолчанию: пустая строка NDJSON.
-          return new ReactResponse(200, ['Content-Type' => 'application/x-ndjson; charset=utf-8'], "\n");
-        }
-      }
+          $stream = new ThroughStream();
 
-      // /mcp/http — потоковый HTTP (NDJSON).
-      if ($method === 'GET' && $path === $base . '/http') {
-        $stream = new ThroughStream();
-        // Начальный фрейм.
-        Loop::futureTick(function () use ($stream) {
-          $stream->write("{\"type\":\"open\",\"ts\":\"" . date('c') . "\"}\n");
-        });
-        // Периодические пинги.
-        $timer = Loop::addPeriodicTimer(10.0, function () use ($stream) {
-          if (method_exists($stream, 'isWritable') && $stream->isWritable()) {
-            $stream->write("{\"type\":\"ping\",\"ts\":\"" . date('c') . "\"}\n");
+          // Генерируем session ID.
+          try {
+            $sessionId = bin2hex(random_bytes(16));
           }
-        });
-        $stream->on('close', function () use ($timer) {
-          Loop::cancelTimer($timer);
-        });
-        $headers = [
-          'Content-Type' => 'application/x-ndjson; charset=utf-8',
-          'Cache-Control' => 'no-cache',
-          'Connection' => 'keep-alive',
-          'Access-Control-Allow-Origin' => '*',
-        ];
-        if ($this->config->logLevel === 'debug') {
-          $this->write('[HTTP] stream opened ip=' . $clientIp . ' ua=' . $ua);
-        }
-        return new ReactResponse(200, $headers, $stream);
-      }
-
-              // /mcp/sse — улучшенный SSE стрим с полной MCP совместимостью.
-      if ($method === 'GET' && $path === $base . '/sse') {
-        // Контент-негациация: если клиент просит JSON, возвращаем манифест.
-        $acceptHeader = $request->getHeaderLine('Accept');
-        $acceptLower = is_string($acceptHeader) ? strtolower($acceptHeader) : '';
-        if ($acceptLower !== '' && str_contains($acceptLower, 'application/json')) {
-          // Формируем список tools для манифеста.
-          $toolsOut = [];
-          foreach (array_keys($this->config->tools) as $toolName) {
-            $toolsOut[] = [
-              'name' => $toolName,
-              'description' => 'Tool ' . $toolName,
-              'inputSchema' => [
-                'type' => 'object',
-                'properties' => [],
-                'required' => [],
-                'additionalProperties' => FALSE,
-              ],
-            ];
+          catch (\Throwable $e) {
+            $sessionId = uniqid('mcp_', TRUE);
           }
 
-          $manifest = [
-            'protocolVersion' => '2025-06-18',
-            'serverInfo' => ['name' => 'Politsin MCP Server', 'version' => '1.0.0'],
-            'capabilities' => ['tools' => new \stdClass(), 'prompts' => new \stdClass(), 'resources' => new \stdClass()],
-            'endpoints' => ['messages' => 'sse', 'requests' => 'mcp/requests'],
-            'tools' => $toolsOut,
-          ];
-          $body = json_encode($manifest, JSON_UNESCAPED_UNICODE);
-          return new ReactResponse(200, ['Content-Type' => 'application/json; charset=utf-8'], $body);
-        }
+          // Отправляем начальные кадры в futureTick.
+          Loop::futureTick(function () use ($stream, $sessionId) {
+            // Рекомендуем интервал реконнекта.
+            $stream->write("retry: 3000\n");
 
-        $stream = new ThroughStream();
+            // Сигнализируем об открытии.
+            $stream->write("event: open\n");
+            $stream->write("data: {}\n\n");
 
-        // Генерируем session ID.
-        try {
-          $sessionId = bin2hex(random_bytes(16));
-        }
-        catch (\Throwable $e) {
-          $sessionId = uniqid('mcp_', TRUE);
-        }
+            // Отправляем endpoint с sessionId.
+            $stream->write("event: endpoint\n");
+            $stream->write("data: {\"url\":\"sse?sessionId={$sessionId}\"}\n\n");
 
-        // Отправляем начальные кадры в futureTick.
-        Loop::futureTick(function () use ($stream, $sessionId) {
-          // Рекомендуем интервал реконнекта.
-          $stream->write("retry: 3000\n");
-
-          // Сигнализируем об открытии.
-          $stream->write("event: open\n");
-          $stream->write("data: {}\n\n");
-
-          // Отправляем endpoint с sessionId.
-          $stream->write("event: endpoint\n");
-          $stream->write("data: {\"url\":\"sse?sessionId={$sessionId}\"}\n\n");
-
-          // Сигнал готовности.
-          $stream->write("event: message\n");
-          $stream->write("data: {\"type\":\"ready\"}\n\n");
-
-          // Инициализация.
-          $stream->write("event: message\n");
-          $stream->write("data: {\"type\":\"initialize\",\"protocolVersion\":\"2025-06-18\"}\n\n");
-
-          // Padding для раннего флаша (2KB).
-          for ($i = 0; $i < 100; $i++) {
-            $stream->write(": padding " . str_repeat('x', 20) . "\n");
-          }
-          $stream->write("\n");
-
-          // Формируем список tools для манифеста.
-          $toolsOut = [];
-          foreach (array_keys($this->config->tools) as $toolName) {
-            $toolsOut[] = [
-              'name' => $toolName,
-              'description' => 'Tool ' . $toolName,
-              'inputSchema' => [
-                'type' => 'object',
-                'properties' => [],
-                'required' => [],
-                'additionalProperties' => FALSE,
-              ],
-            ];
-          }
-          // Манифест в разных форматах для совместимости.
-          $manifest = [
-            'protocolVersion' => '2025-06-18',
-            'serverInfo' => ['name' => 'Politsin MCP Server', 'version' => '1.0.0'],
-            'capabilities' => ['tools' => new \stdClass(), 'prompts' => new \stdClass(), 'resources' => new \stdClass()],
-            'endpoints' => ['messages' => 'sse', 'requests' => 'mcp/requests'],
-            'tools' => $toolsOut,
-          ];
-          $manifestJson = json_encode(['manifest' => $manifest], JSON_UNESCAPED_UNICODE);
-          $manifestTypedJson = json_encode(['type' => 'manifest', 'manifest' => $manifest], JSON_UNESCAPED_UNICODE);
-
-          $stream->write("data: {$manifestJson}\n\n");
-          $stream->write("data: {$manifestTypedJson}\n\n");
-          $stream->write("event: manifest\n");
-          $stream->write("data: {$manifestJson}\n\n");
-
-          // Bootstrap запрос tools/list.
-          $toolsListRequest = [
-            'jsonrpc' => '2.0',
-            'id' => 'bootstrap',
-            'method' => 'tools/list',
-          ];
-          $toolsListJson = json_encode($toolsListRequest, JSON_UNESCAPED_UNICODE);
-          $stream->write("event: message\n");
-          $stream->write("data: {\"type\":\"request\",\"request\":{$toolsListJson}}\n\n");
-        });
-
-        // Ранние keep-alive каждую секунду первые 10 секунд.
-        $earlyTimer = Loop::addPeriodicTimer(1.0, function () use ($stream) {
-          if ($stream->isWritable()) {
-            $stream->write(": keep-alive\n\n");
-          }
-        });
-        Loop::addTimer(10.0, function () use ($earlyTimer) {
-          Loop::cancelTimer($earlyTimer);
-        });
-
-        // Периодические пинги каждые 10 секунд.
-        $timer = Loop::addPeriodicTimer(10.0, function () use ($stream) {
-          if ($stream->isWritable()) {
-            $stream->write(": ping " . date('c') . "\n\n");
-          }
-        });
-
-        // Heartbeat каждые 30 секунд.
-        $heartbeatTimer = Loop::addPeriodicTimer(30.0, function () use ($stream) {
-          if ($stream->isWritable()) {
+            // Сигнал готовности.
             $stream->write("event: message\n");
-            $stream->write("data: {\"type\":\"heartbeat\",\"ts\":\"" . date('c') . "\"}\n\n");
-          }
-        });
+            $stream->write("data: {\"type\":\"ready\"}\n\n");
 
-        // Очистка при закрытии соединения.
-        $stream->on('close', function () use ($timer, $earlyTimer, $heartbeatTimer) {
-          Loop::cancelTimer($timer);
-          Loop::cancelTimer($earlyTimer);
-          Loop::cancelTimer($heartbeatTimer);
-        });
+            // Инициализация.
+            $stream->write("event: message\n");
+            $stream->write("data: {\"type\":\"initialize\",\"protocolVersion\":\"2025-06-18\"}\n\n");
 
-        $headers = [
-          'Content-Type' => 'text/event-stream; charset=utf-8',
-          'Cache-Control' => 'no-cache, no-transform',
-          'X-Accel-Buffering' => 'no',
-          'Connection' => 'keep-alive',
-          'Access-Control-Allow-Origin' => '*',
-          'mcp-session-id' => $sessionId,
-        ];
+            // Padding для раннего флаша (2KB).
+            for ($i = 0; $i < 100; $i++) {
+              $stream->write(": padding " . str_repeat('x', 20) . "\n");
+            }
+            $stream->write("\n");
 
-        if ($this->config->logLevel === 'debug') {
-          $this->write('[SSE] connection opened ip=' . $clientIp . ' ua=' . $ua . ' session=' . $sessionId);
+            // Формируем список tools для манифеста.
+            $toolsOut = [];
+            foreach (array_keys($this->config->tools) as $toolName) {
+              $toolsOut[] = [
+                'name' => $toolName,
+                'description' => 'Tool ' . $toolName,
+                'inputSchema' => [
+                  'type' => 'object',
+                  'properties' => [],
+                  'required' => [],
+                  'additionalProperties' => FALSE,
+                ],
+              ];
+            }
+            // Манифест в разных форматах для совместимости.
+            $manifest = [
+              'protocolVersion' => '2025-06-18',
+              'serverInfo' => ['name' => 'Politsin MCP Server', 'version' => '1.0.0'],
+              'capabilities' => ['tools' => new \stdClass(), 'prompts' => new \stdClass(), 'resources' => new \stdClass()],
+              'endpoints' => ['messages' => 'sse', 'requests' => 'mcp/requests'],
+              'tools' => $toolsOut,
+            ];
+            $manifestJson = json_encode(['manifest' => $manifest], JSON_UNESCAPED_UNICODE);
+            $manifestTypedJson = json_encode(['type' => 'manifest', 'manifest' => $manifest], JSON_UNESCAPED_UNICODE);
+
+            $stream->write("data: {$manifestJson}\n\n");
+            $stream->write("data: {$manifestTypedJson}\n\n");
+            $stream->write("event: manifest\n");
+            $stream->write("data: {$manifestJson}\n\n");
+
+            // Bootstrap запрос tools/list.
+            $toolsListRequest = [
+              'jsonrpc' => '2.0',
+              'id' => 'bootstrap',
+              'method' => 'tools/list',
+            ];
+            $toolsListJson = json_encode($toolsListRequest, JSON_UNESCAPED_UNICODE);
+            $stream->write("event: message\n");
+            $stream->write("data: {\"type\":\"request\",\"request\":{$toolsListJson}}\n\n");
+          });
+
+          // Ранние keep-alive каждую секунду первые 10 секунд.
+          $earlyTimer = Loop::addPeriodicTimer(1.0, function () use ($stream) {
+            if ($stream->isWritable()) {
+              $stream->write(": keep-alive\n\n");
+            }
+          });
+          Loop::addTimer(10.0, function () use ($earlyTimer) {
+            Loop::cancelTimer($earlyTimer);
+          });
+
+          // Периодические пинги каждые 10 секунд.
+          $timer = Loop::addPeriodicTimer(10.0, function () use ($stream) {
+            if ($stream->isWritable()) {
+              $stream->write(": ping " . date('c') . "\n\n");
+            }
+          });
+
+          // Heartbeat каждые 30 секунд.
+          $heartbeatTimer = Loop::addPeriodicTimer(30.0, function () use ($stream) {
+            if ($stream->isWritable()) {
+              $stream->write("event: message\n");
+              $stream->write("data: {\"type\":\"heartbeat\",\"ts\":\"" . date('c') . "\"}\n\n");
+            }
+          });
+
+          // Очистка при закрытии соединения.
+          $stream->on('close', function () use ($timer, $earlyTimer, $heartbeatTimer) {
+            Loop::cancelTimer($timer);
+            Loop::cancelTimer($earlyTimer);
+            Loop::cancelTimer($heartbeatTimer);
+          });
+
+                  $headers = [
+                    ...$cors,
+                    'Content-Type' => 'text/event-stream; charset=utf-8',
+                    'Cache-Control' => 'no-cache, no-transform',
+                    'X-Accel-Buffering' => 'no',
+                    'Connection' => 'keep-alive',
+                    'mcp-session-id' => $sessionId,
+                  ];
+
+                  if ($this->config->logLevel === 'debug') {
+                    $this->write('[SSE] connection opened ip=' . $clientIp . ' ua=' . $ua . ' session=' . $sessionId);
+                  }
+
+                  return new ReactResponse(200, $headers, $stream);
         }
 
-        return new ReactResponse(200, $headers, $stream);
-      }
-
-      if ($this->config->logLevel === 'debug') {
-        $this->write('[RESP] 404 not_found');
-      }
-      return ReactResponse::json(['error' => 'not_found'], 404);
+        if ($this->config->logLevel === 'debug') {
+          $this->write('[RESP] 404 not_found');
+        }
+        return new ReactResponse(404, [...$cors, 'Content-Type' => 'application/json; charset=utf-8'], json_encode(['error' => 'not_found'], JSON_UNESCAPED_UNICODE));
     });
 
     return $this->server;
