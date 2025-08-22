@@ -144,7 +144,7 @@ final class TestPage {
       const url = buildUrl(sseUrlEl.value || '$base/sse');
       try { if (es) es.close(); } catch(e) {}
       logLine('connect', 'SSE ->', url);
-      
+
       // Сначала проверяем CORS заголовки
       fetch(url, { method: 'HEAD' })
         .then(res => {
@@ -158,7 +158,7 @@ final class TestPage {
         .catch(e => {
           logLine('CORS-ERROR', 'HEAD request failed:', String(e));
         });
-      
+
       es = new EventSource(url, { withCredentials: true });
       es.onopen = () => logLine('evt', 'open');
       es.onmessage = (e) => logLine('msg', e.data);
