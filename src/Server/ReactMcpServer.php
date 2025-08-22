@@ -6,6 +6,7 @@ namespace Politsin\Mcp\Server;
 
 use Politsin\Mcp\Config\McpConfig;
 use Politsin\Mcp\Session\SessionManager;
+use Politsin\Mcp\Tool\ToolInterface;
 use React\EventLoop\Loop;
 use React\Http\HttpServer;
 use React\Http\Message\Response as ReactResponse;
@@ -322,7 +323,7 @@ final class ReactMcpServer {
 
               $toolsOut = [];
               foreach ($this->config->tools as $key => $def) {
-                $toolName = is_string($key) ? $key : (is_object($def) && $def instanceof \Politsin\Mcp\Tool\ToolInterface ? $def->getName() : (is_string($def) ? $def : ''));
+                $toolName = is_string($key) ? $key : (is_object($def) && $def instanceof ToolInterface ? $def->getName() : (is_string($def) ? $def : ''));
                 $desc = 'Tool ' . $toolName;
                 $schema = [
                   'type' => 'object',
@@ -330,17 +331,18 @@ final class ReactMcpServer {
                   'required' => [],
                   'additionalProperties' => FALSE,
                 ];
-                if (is_object($def) && $def instanceof \Politsin\Mcp\Tool\ToolInterface) {
+                if (is_object($def) && $def instanceof ToolInterface) {
                   $desc = $def->getDescription();
                   $schema = $def->getInputSchema();
                 }
-                elseif (is_string($def) && class_exists($def) && is_subclass_of($def, \Politsin\Mcp\Tool\ToolInterface::class)) {
+                elseif (is_string($def) && class_exists($def) && is_subclass_of($def, ToolInterface::class)) {
                   try {
                     $inst = new $def();
                     $desc = $inst->getDescription();
                     $schema = $inst->getInputSchema();
                   }
-                  catch (\Throwable $e) {}
+                  catch (\Throwable $e) {
+                  }
                 }
                 $toolsOut[] = [
                   'name' => $toolName,
@@ -733,10 +735,10 @@ final class ReactMcpServer {
             else {
               try {
                 $def = $this->config->tools[$name];
-                if (is_object($def) && $def instanceof \Politsin\Mcp\Tool\ToolInterface) {
+                if (is_object($def) && $def instanceof ToolInterface) {
                   $resultVal = $def->execute($arguments);
                 }
-                elseif (is_string($def) && class_exists($def) && is_subclass_of($def, \Politsin\Mcp\Tool\ToolInterface::class)) {
+                elseif (is_string($def) && class_exists($def) && is_subclass_of($def, ToolInterface::class)) {
                   $inst = new $def();
                   $resultVal = $inst->execute($arguments);
                 }
@@ -1045,16 +1047,32 @@ final class ReactMcpServer {
         }
         elseif ($rpcMethod === 'tools/list') {
           $toolsOut = [];
-          foreach (array_keys($this->config->tools) as $toolName) {
+          foreach ($this->config->tools as $key => $def) {
+            $toolName = is_string($key) ? $key : (is_object($def) && $def instanceof \Politsin\Mcp\Tool\ToolInterface ? $def->getName() : (is_string($def) ? (class_exists($def) && is_subclass_of($def, \Politsin\Mcp\Tool\ToolInterface::class) ? (new $def())->getName() : $def) : ''));
+            $desc = 'Tool ' . (string) $toolName;
+            $schema = [
+              'type' => 'object',
+              'properties' => new \stdClass(),
+              'required' => [],
+              'additionalProperties' => FALSE,
+            ];
+            if (is_object($def) && $def instanceof \Politsin\Mcp\Tool\ToolInterface) {
+              $desc = $def->getDescription();
+              $schema = $def->getInputSchema();
+            }
+            elseif (is_string($def) && class_exists($def) && is_subclass_of($def, \Politsin\Mcp\Tool\ToolInterface::class)) {
+              try {
+                $inst = new $def();
+                $desc = $inst->getDescription();
+                $schema = $inst->getInputSchema();
+              }
+              catch (\Throwable $e) {
+              }
+            }
             $toolsOut[] = [
-              'name' => $toolName,
-              'description' => 'Tool ' . $toolName,
-              'inputSchema' => [
-                'type' => 'object',
-                'properties' => new \stdClass(),
-                'required' => [],
-                'additionalProperties' => FALSE,
-              ],
+              'name' => (string) $toolName,
+              'description' => $desc,
+              'inputSchema' => $schema,
             ];
           }
           $response = [

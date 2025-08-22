@@ -38,5 +38,3 @@ interface ToolInterface {
   public function execute(array $arguments): mixed;
 
 }
-
-
