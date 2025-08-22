@@ -387,24 +387,16 @@ final class ReactMcpServer {
             // Рекомендуем интервал реконнекта.
             $stream->write("retry: 3000\n");
 
-            // Сигнализируем об открытии.
-            $stream->write("event: open\n");
-            $stream->write("data: {}\n\n");
-
             // Отправляем endpoint с sessionId.
             $stream->write("event: endpoint\n");
-            $stream->write("data: {\"url\":\"sse?sessionId={$sessionId}\"}\n\n");
-
-            // Сигнал готовности.
-            $stream->write("event: message\n");
-            $stream->write("data: {\"type\":\"ready\"}\n\n");
+            $stream->write("data: /sse/message?sessionId={$sessionId}\n\n");
 
             // Инициализация.
             $stream->write("event: message\n");
             $stream->write("data: {\"type\":\"initialize\",\"protocolVersion\":\"2025-06-18\"}\n\n");
 
-            // Padding для раннего флаша (2KB).
-            for ($i = 0; $i < 100; $i++) {
+            // Padding для раннего флаша (небольшой).
+            for ($i = 0; $i < 5; $i++) {
               $stream->write(": padding " . str_repeat('x', 20) . "\n");
             }
             $stream->write("\n");
@@ -434,7 +426,9 @@ final class ReactMcpServer {
             $manifestJson = json_encode(['manifest' => $manifest], JSON_UNESCAPED_UNICODE);
             $manifestTypedJson = json_encode(['type' => 'manifest', 'manifest' => $manifest], JSON_UNESCAPED_UNICODE);
 
+            $stream->write("event: message\n");
             $stream->write("data: {$manifestJson}\n\n");
+            $stream->write("event: message\n");
             $stream->write("data: {$manifestTypedJson}\n\n");
             $stream->write("event: manifest\n");
             $stream->write("data: {$manifestJson}\n\n");
