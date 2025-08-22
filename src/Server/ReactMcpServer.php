@@ -172,7 +172,7 @@ final class ReactMcpServer {
           return $this->createResponse(200, ['Content-Type' => 'application/json; charset=utf-8'], $body);
       }
 
-        // /mcp/http — JSON-RPC по POST: базовая поддержка initialize.
+      // /mcp/http — JSON-RPC по POST: базовая поддержка initialize.
       if ($method === 'POST' && $path === $base . '/http') {
         $raw = (string) $request->getBody();
         $payload = json_decode($raw, TRUE);
@@ -315,11 +315,11 @@ final class ReactMcpServer {
               'id' => $id,
               'result' => [
                 'contents' => [
-                [
-                  'uri' => $uri,
-                  'mimeType' => $mime,
-                  'text' => $text,
-                ],
+                  [
+                    'uri' => $uri,
+                    'mimeType' => $mime,
+                    'text' => $text,
+                  ],
                 ],
               ],
             ];
@@ -331,7 +331,7 @@ final class ReactMcpServer {
         }
       }
 
-        // /mcp/http — потоковый HTTP (NDJSON).
+      // /mcp/http — потоковый HTTP (NDJSON).
       if ($method === 'GET' && $path === $base . '/http') {
         $stream = new ThroughStream();
         // Начальный фрейм.
@@ -347,15 +347,15 @@ final class ReactMcpServer {
         $stream->on('close', function () use ($timer) {
           Loop::cancelTimer($timer);
         });
-                $headers = [
-                  'Content-Type' => 'application/x-ndjson; charset=utf-8',
-                  'Cache-Control' => 'no-cache',
-                  'Connection' => 'keep-alive',
-                ];
-                if ($this->config->logLevel === 'debug') {
-                  $this->write('[HTTP] stream opened ip=' . $clientIp . ' ua=' . $ua);
-                }
-                return new ReactResponse(200, $headers, $stream);
+        $headers = [
+          'Content-Type' => 'application/x-ndjson; charset=utf-8',
+          'Cache-Control' => 'no-cache',
+          'Connection' => 'keep-alive',
+        ];
+        if ($this->config->logLevel === 'debug') {
+          $this->write('[HTTP] stream opened ip=' . $clientIp . ' ua=' . $ua);
+        }
+        return new ReactResponse(200, $headers, $stream);
       }
 
               // /mcp/sse — улучшенный SSE стрим с полной MCP совместимостью.
@@ -479,17 +479,17 @@ final class ReactMcpServer {
           Loop::cancelTimer($timer);
         });
 
-                $headers = [
-                  'Content-Type' => 'text/event-stream; charset=utf-8',
-                  'Cache-Control' => 'no-cache, no-transform',
-                  'X-Accel-Buffering' => 'no',
-                  'Connection' => 'keep-alive',
-                  'mcp-session-id' => $sessionId,
-                ];
+        $headers = [
+          'Content-Type' => 'text/event-stream; charset=utf-8',
+          'Cache-Control' => 'no-cache, no-transform',
+          'X-Accel-Buffering' => 'no',
+          'Connection' => 'keep-alive',
+          'mcp-session-id' => $sessionId,
+        ];
 
-                if ($this->config->logLevel === 'debug') {
-                  $this->write('[SSE] connection opened ip=' . $clientIp . ' ua=' . $ua . ' session=' . $sessionId);
-                }
+        if ($this->config->logLevel === 'debug') {
+          $this->write('[SSE] connection opened ip=' . $clientIp . ' ua=' . $ua . ' session=' . $sessionId);
+        }
 
                 return $this->createResponse(200, $headers, $stream);
       }

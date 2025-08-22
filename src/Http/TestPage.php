@@ -160,7 +160,7 @@ final class TestPage {
           logLine('CORS-ERROR', 'This indicates a CORS issue - check browser console');
         });
 
-      es = new EventSource(url, { withCredentials: true });
+      es = new EventSource(url, { withCredentials: false });
       es.onopen = () => logLine('evt', 'open');
       es.onmessage = (e) => logLine('msg', e.data);
       es.onerror = (e) => {
