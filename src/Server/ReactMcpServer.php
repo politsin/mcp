@@ -693,6 +693,47 @@ final class ReactMcpServer {
               'result' => ['tools' => $toolsOut],
             ];
           }
+          elseif ($rpcMethod === 'tools/call') {
+            $paramsIn = isset($payload['params']) && is_array($payload['params']) ? $payload['params'] : [];
+            $name = (string) ($paramsIn['name'] ?? ($paramsIn['tool'] ?? ''));
+            $arguments = isset($paramsIn['arguments']) && is_array($paramsIn['arguments']) ? $paramsIn['arguments'] : [];
+
+            if ($name === '' || !isset($this->config->tools[$name])) {
+              $response = [
+                'jsonrpc' => '2.0',
+                'id' => $id,
+                'error' => [
+                  'code' => -32602,
+                  'message' => 'Unknown tool: ' . $name,
+                ],
+              ];
+            }
+            else {
+              try {
+                $callable = $this->config->tools[$name];
+                $resultVal = empty($arguments) ? $callable() : $callable($arguments);
+                $resultJson = json_encode($resultVal, JSON_UNESCAPED_UNICODE | JSON_PRETTY_PRINT);
+                $response = [
+                  'jsonrpc' => '2.0',
+                  'id' => $id,
+                  'result' => [
+                    'content' => [['type' => 'text', 'text' => $resultJson]],
+                    'isError' => FALSE,
+                  ],
+                ];
+              }
+              catch (\Throwable $e) {
+                $response = [
+                  'jsonrpc' => '2.0',
+                  'id' => $id,
+                  'error' => [
+                    'code' => -32000,
+                    'message' => $e->getMessage(),
+                  ],
+                ];
+              }
+            }
+          }
           elseif ($rpcMethod === 'notifications/initialized') {
             $response = [
               'jsonrpc' => '2.0',
@@ -756,6 +797,47 @@ final class ReactMcpServer {
               'id' => $id,
               'result' => ['tools' => $toolsOut],
             ];
+          }
+          elseif ($rpcMethod === 'tools/call') {
+            $paramsIn = isset($payload['params']) && is_array($payload['params']) ? $payload['params'] : [];
+            $name = (string) ($paramsIn['name'] ?? ($paramsIn['tool'] ?? ''));
+            $arguments = isset($paramsIn['arguments']) && is_array($paramsIn['arguments']) ? $paramsIn['arguments'] : [];
+
+            if ($name === '' || !isset($this->config->tools[$name])) {
+              $response = [
+                'jsonrpc' => '2.0',
+                'id' => $id,
+                'error' => [
+                  'code' => -32602,
+                  'message' => 'Unknown tool: ' . $name,
+                ],
+              ];
+            }
+            else {
+              try {
+                $callable = $this->config->tools[$name];
+                $resultVal = empty($arguments) ? $callable() : $callable($arguments);
+                $resultJson = json_encode($resultVal, JSON_UNESCAPED_UNICODE | JSON_PRETTY_PRINT);
+                $response = [
+                  'jsonrpc' => '2.0',
+                  'id' => $id,
+                  'result' => [
+                    'content' => [['type' => 'text', 'text' => $resultJson]],
+                    'isError' => FALSE,
+                  ],
+                ];
+              }
+              catch (\Throwable $e) {
+                $response = [
+                  'jsonrpc' => '2.0',
+                  'id' => $id,
+                  'error' => [
+                    'code' => -32000,
+                    'message' => $e->getMessage(),
+                  ],
+                ];
+              }
+            }
           }
           elseif ($rpcMethod === 'notifications/initialized') {
             $response = [
