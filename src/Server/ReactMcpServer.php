@@ -152,7 +152,11 @@ final class ReactMcpServer {
           'protocolVersion' => '2024-11-05',
           'serverInfo' => ['name' => 'Politsin MCP Server', 'version' => '1.0.0'],
           'capabilities' => ['tools' => ['listChanged' => TRUE]],
-          'endpoints' => ['messages' => 'sse', 'requests' => 'mcp/requests'],
+          'endpoints' => [
+            'messages' => 'sse', 
+            'requests' => 'mcp/requests',
+            'http' => 'mcp/http'
+          ],
           'tools' => $toolsOut,
         ];
         return $this->createResponse(200, ['Content-Type' => 'application/json; charset=utf-8'], json_encode($manifest, JSON_UNESCAPED_UNICODE));
