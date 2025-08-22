@@ -541,45 +541,10 @@ final class ReactMcpServer {
           'created_at' => date('Y-m-d H:i:s'),
         ]);
 
-        // Отправляем endpoint и инициализационные сообщения, как в demo-day.
+        // Отправляем только endpoint; JSON-RPC ответы приходят через POST /mcp/sse/message.
         Loop::futureTick(function () use ($stream, $sessionId) {
-          // Отправляем endpoint с sessionId.
           $stream->write("event: endpoint\n");
           $stream->write("data: /mcp/sse/message?sessionId={$sessionId}\n\n");
-
-          // Отправляем инициализационное сообщение.
-          $initMessage = [
-            'jsonrpc' => '2.0',
-            'id' => 'init-1',
-            'result' => [
-              'protocolVersion' => '2024-11-05',
-              'capabilities' => ['tools' => ['listChanged' => TRUE]],
-              'serverInfo' => ['name' => 'Politsin MCP Server', 'version' => '1.0.0'],
-            ],
-          ];
-          $stream->write("event: message\n");
-          $stream->write("data: " . json_encode($initMessage) . "\n\n");
-
-          // Отправляем список инструментов.
-          $toolsOut = [];
-          foreach (array_keys($this->config->tools) as $toolName) {
-            $toolsOut[] = [
-              'name' => $toolName,
-              'description' => 'Tool ' . $toolName,
-              'inputSchema' => [
-                'type' => 'object',
-                'properties' => new \stdClass(),
-              ],
-            ];
-          }
-
-          $toolsMessage = [
-            'jsonrpc' => '2.0',
-            'id' => 'tool-list-1',
-            'result' => ['tools' => $toolsOut],
-          ];
-          $stream->write("event: message\n");
-          $stream->write("data: " . json_encode($toolsMessage) . "\n\n");
         });
 
         // Простой keep-alive каждые 30 секунд.
