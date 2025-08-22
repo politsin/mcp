@@ -145,8 +145,8 @@ final class TestPage {
       try { if (es) es.close(); } catch(e) {}
       logLine('connect', 'SSE ->', url);
 
-      // Сначала проверяем CORS заголовки
-      fetch(url, { method: 'HEAD' })
+      // Сначала проверяем CORS заголовки (используем GET вместо HEAD)
+      fetch(url, { method: 'GET', mode: 'cors' })
         .then(res => {
           logLine('CORS-CHECK', 'Status:', res.status);
           logLine('CORS-CHECK', 'Access-Control-Allow-Origin:', res.headers.get('Access-Control-Allow-Origin') || 'NOT SET');
@@ -156,7 +156,8 @@ final class TestPage {
           logLine('CORS-CHECK', 'Access-Control-Expose-Headers:', res.headers.get('Access-Control-Expose-Headers') || 'NOT SET');
         })
         .catch(e => {
-          logLine('CORS-ERROR', 'HEAD request failed:', String(e));
+          logLine('CORS-ERROR', 'GET request failed:', String(e));
+          logLine('CORS-ERROR', 'This indicates a CORS issue - check browser console');
         });
 
       es = new EventSource(url, { withCredentials: true });
