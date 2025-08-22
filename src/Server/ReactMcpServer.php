@@ -321,16 +321,31 @@ final class ReactMcpServer {
               $this->write('[TOOLS-LIST] requested by ip=' . $clientIp . ' ua=' . $ua);
 
               $toolsOut = [];
-              foreach (array_keys($this->config->tools) as $toolName) {
+              foreach ($this->config->tools as $key => $def) {
+                $toolName = is_string($key) ? $key : (is_object($def) && $def instanceof \Politsin\Mcp\Tool\ToolInterface ? $def->getName() : (is_string($def) ? $def : ''));
+                $desc = 'Tool ' . $toolName;
+                $schema = [
+                  'type' => 'object',
+                  'properties' => new \stdClass(),
+                  'required' => [],
+                  'additionalProperties' => FALSE,
+                ];
+                if (is_object($def) && $def instanceof \Politsin\Mcp\Tool\ToolInterface) {
+                  $desc = $def->getDescription();
+                  $schema = $def->getInputSchema();
+                }
+                elseif (is_string($def) && class_exists($def) && is_subclass_of($def, \Politsin\Mcp\Tool\ToolInterface::class)) {
+                  try {
+                    $inst = new $def();
+                    $desc = $inst->getDescription();
+                    $schema = $inst->getInputSchema();
+                  }
+                  catch (\Throwable $e) {}
+                }
                 $toolsOut[] = [
                   'name' => $toolName,
-                  'description' => 'Tool ' . $toolName,
-                  'inputSchema' => [
-                    'type' => 'object',
-                    'properties' => new \stdClass(),
-                    'required' => [],
-                    'additionalProperties' => FALSE,
-                  ],
+                  'description' => $desc,
+                  'inputSchema' => $schema,
                 ];
               }
 
@@ -717,8 +732,18 @@ final class ReactMcpServer {
             }
             else {
               try {
-                $callable = $this->config->tools[$name];
-                $resultVal = empty($arguments) ? $callable() : $callable($arguments);
+                $def = $this->config->tools[$name];
+                if (is_object($def) && $def instanceof \Politsin\Mcp\Tool\ToolInterface) {
+                  $resultVal = $def->execute($arguments);
+                }
+                elseif (is_string($def) && class_exists($def) && is_subclass_of($def, \Politsin\Mcp\Tool\ToolInterface::class)) {
+                  $inst = new $def();
+                  $resultVal = $inst->execute($arguments);
+                }
+                else {
+                  $callable = $def;
+                  $resultVal = empty($arguments) ? $callable() : $callable($arguments);
+                }
                 $resultJson = json_encode($resultVal, JSON_UNESCAPED_UNICODE | JSON_PRETTY_PRINT);
                 $response = [
                   'jsonrpc' => '2.0',

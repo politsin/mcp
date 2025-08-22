@@ -9,7 +9,7 @@ namespace Politsin\Mcp\Config;
  */
 final class McpConfig {
   // phpcs:disable
-  /** @var array<string, callable> */
+  /** @var array<string, callable|\Politsin\Mcp\Tool\ToolInterface|class-string<\Politsin\Mcp\Tool\ToolInterface>> */
   public array $tools;
 
   /** @var array<string, mixed> */
@@ -55,7 +55,7 @@ final class McpConfig {
   /**
    * Создаёт конфигурацию MCP.
    *
-   * @param array<string, callable> $tools
+   * @param array<string, callable|\Politsin\Mcp\Tool\ToolInterface|class-string<\Politsin\Mcp\Tool\ToolInterface>> $tools
    *   Реестр тулзов: имя → callable.
    * @param array<string, mixed> $resources
    *   Описание доступных ресурсов.
