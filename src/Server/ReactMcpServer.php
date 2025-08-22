@@ -24,6 +24,13 @@ final class ReactMcpServer {
   private McpConfig $config;
 
   /**
+   * Активные SSE-потоки по sessionId.
+   *
+   * @var array<string, \React\Stream\ThroughStream>
+   */
+  private array $sseStreams = [];
+
+  /**
    * HTTP сервер ReactPHP.
    *
    * @var \React\Http\HttpServer|null
@@ -566,7 +573,11 @@ final class ReactMcpServer {
           'created_at' => date('Y-m-d H:i:s'),
         ]);
 
-        // Отправляем только endpoint; JSON-RPC ответы приходят через POST /mcp/sse/message.
+        // Сохраняем поток для ответов по sessionId.
+        $this->sseStreams[$sessionId] = $stream;
+
+        // Отправляем только endpoint; JSON-RPC ответы будут транслироваться
+        // в этот же поток при POST /mcp/sse/message.
         Loop::futureTick(function () use ($stream, $sessionId) {
           $stream->write("event: endpoint\n");
           $stream->write("data: /mcp/sse/message?sessionId={$sessionId}\n\n");
@@ -589,8 +600,11 @@ final class ReactMcpServer {
         });
 
         // Очистка при закрытии соединения.
-        $stream->on('close', function () use ($timer) {
+        $stream->on('close', function () use ($timer, $sessionId) {
           Loop::cancelTimer($timer);
+          if (isset($this->sseStreams[$sessionId])) {
+            unset($this->sseStreams[$sessionId]);
+          }
         });
 
         $headers = [
@@ -639,17 +653,16 @@ final class ReactMcpServer {
           'message_count' => ($this->sessionManager->getSession($sessionId)['data']['message_count'] ?? 0) + 1,
         ]);
 
-        // POST на /sse/message должен возвращать SSE поток (как demo-day).
-        $stream = new ThroughStream();
+        // Сформируем ответ и отправим его в существующий SSE-поток сессии,
+        // как ожидают клиенты (demo-day поведение).
+        $target = $this->sseStreams[$sessionId] ?? NULL;
 
-        // Отправляем SSE поток с обработкой сообщения.
-        Loop::futureTick(function () use ($stream, $payload, $sessionId) {
-          // Обрабатываем JSON-RPC сообщение.
+        if ($target instanceof ThroughStream && $target->isWritable()) {
           $rpcMethod = (string) ($payload['method'] ?? '');
           $id = $payload['id'] ?? NULL;
+          $response = NULL;
 
           if ($rpcMethod === 'initialize') {
-            // Отправляем initialize response.
             $response = [
               'jsonrpc' => '2.0',
               'id' => $id,
@@ -659,10 +672,8 @@ final class ReactMcpServer {
                 'serverInfo' => ['name' => 'Politsin MCP Server', 'version' => '1.0.0'],
               ],
             ];
-            $stream->write("data: " . json_encode($response, JSON_UNESCAPED_UNICODE) . "\n\n");
           }
           elseif ($rpcMethod === 'tools/list') {
-            // Отправляем tools/list response.
             $toolsOut = [];
             foreach (array_keys($this->config->tools) as $toolName) {
               $toolsOut[] = [
@@ -681,19 +692,15 @@ final class ReactMcpServer {
               'id' => $id,
               'result' => ['tools' => $toolsOut],
             ];
-            $stream->write("data: " . json_encode($response, JSON_UNESCAPED_UNICODE) . "\n\n");
           }
           elseif ($rpcMethod === 'notifications/initialized') {
-            // Отправляем пустой ответ для notifications/initialized.
             $response = [
               'jsonrpc' => '2.0',
               'id' => $id,
               'result' => new \stdClass(),
             ];
-            $stream->write("data: " . json_encode($response, JSON_UNESCAPED_UNICODE) . "\n\n");
           }
           else {
-            // Неизвестный метод - отправляем ошибку.
             $response = [
               'jsonrpc' => '2.0',
               'id' => $id,
@@ -702,10 +709,74 @@ final class ReactMcpServer {
                 'message' => 'Method not found: ' . $rpcMethod,
               ],
             ];
-            $stream->write("data: " . json_encode($response, JSON_UNESCAPED_UNICODE) . "\n\n");
           }
-        });
 
+          // Пишем в основной SSE‑поток клиента.
+          $target->write("event: message\n");
+          $target->write("data: " . json_encode($response, JSON_UNESCAPED_UNICODE) . "\n\n");
+
+          // Возвращаем 202 Accepted коротким SSE‑ответом (совместимость с demo-day).
+          return $this->createResponse(202, ['Content-Type' => 'text/event-stream; charset=utf-8'], "data: {}\n\n");
+        }
+
+        // Fallback: если SSE‑поток не найден (например, клиент не держит GET),
+        // возвращаем ответ как раньше — в SSE‑теле POST ответа.
+        $stream = new ThroughStream();
+        Loop::futureTick(function () use ($stream, $payload) {
+          $rpcMethod = (string) ($payload['method'] ?? '');
+          $id = $payload['id'] ?? NULL;
+          $response = NULL;
+          if ($rpcMethod === 'initialize') {
+            $response = [
+              'jsonrpc' => '2.0',
+              'id' => $id,
+              'result' => [
+                'protocolVersion' => '2024-11-05',
+                'capabilities' => ['tools' => ['listChanged' => TRUE]],
+                'serverInfo' => ['name' => 'Politsin MCP Server', 'version' => '1.0.0'],
+              ],
+            ];
+          }
+          elseif ($rpcMethod === 'tools/list') {
+            $toolsOut = [];
+            foreach (array_keys($this->config->tools) as $toolName) {
+              $toolsOut[] = [
+                'name' => $toolName,
+                'description' => 'Tool ' . $toolName,
+                'inputSchema' => [
+                  'type' => 'object',
+                  'properties' => [],
+                  'required' => [],
+                  'additionalProperties' => FALSE,
+                ],
+              ];
+            }
+            $response = [
+              'jsonrpc' => '2.0',
+              'id' => $id,
+              'result' => ['tools' => $toolsOut],
+            ];
+          }
+          elseif ($rpcMethod === 'notifications/initialized') {
+            $response = [
+              'jsonrpc' => '2.0',
+              'id' => $id,
+              'result' => new \stdClass(),
+            ];
+          }
+          else {
+            $response = [
+              'jsonrpc' => '2.0',
+              'id' => $id,
+              'error' => [
+                'code' => -32601,
+                'message' => 'Method not found: ' . $rpcMethod,
+              ],
+            ];
+          }
+          $stream->write("data: " . json_encode($response, JSON_UNESCAPED_UNICODE) . "\n\n");
+          $stream->end();
+        });
         return $this->createResponse(202, ['Content-Type' => 'text/event-stream; charset=utf-8'], $stream);
       }
 
