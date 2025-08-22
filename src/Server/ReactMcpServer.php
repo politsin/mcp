@@ -295,7 +295,7 @@ final class ReactMcpServer {
                   'description' => 'Tool ' . $toolName,
                   'inputSchema' => [
                     'type' => 'object',
-                    'properties' => [],
+                    'properties' => new \stdClass(),
                     'required' => [],
                     'additionalProperties' => FALSE,
                   ],
