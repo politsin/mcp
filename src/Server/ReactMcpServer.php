@@ -339,7 +339,7 @@ final class ReactMcpServer {
 
               $toolsOut = [];
               foreach ($this->config->tools as $key => $def) {
-                $toolName = is_string($key) ? $key : (is_object($def) && $def instanceof ToolInterface ? $def->getName() : (is_string($def) ? $def : ''));
+                $toolName = is_string($key) ? $key : (is_object($def) && $def instanceof ToolInterface ? $def->getName() : (is_string($def) ? (class_exists($def) && is_subclass_of($def, ToolInterface::class) ? (new $def())->getName() : $def) : ''));
                 $desc = 'Tool ' . $toolName;
                 $schema = [
                   'type' => 'object',
@@ -361,7 +361,7 @@ final class ReactMcpServer {
                   }
                 }
                 $toolsOut[] = [
-                  'name' => $toolName,
+                  'name' => (string) $toolName,
                   'description' => $desc,
                   'inputSchema' => $schema,
                 ];
