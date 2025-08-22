@@ -155,9 +155,9 @@ final class ReactMcpServer {
         }
 
         $manifest = [
-          'protocolVersion' => '2025-06-18',
+          'protocolVersion' => '2024-11-05',
           'serverInfo' => ['name' => 'Politsin MCP Server', 'version' => '1.0.0'],
-          'capabilities' => ['tools' => new \stdClass(), 'prompts' => new \stdClass(), 'resources' => new \stdClass()],
+          'capabilities' => ['tools' => ['listChanged' => TRUE]],
           'endpoints' => ['messages' => 'sse', 'requests' => 'mcp/requests'],
           'tools' => $toolsOut,
         ];
@@ -423,11 +423,20 @@ final class ReactMcpServer {
           $stream->write("event: endpoint\n");
           $stream->write("data: /mcp/sse/message?sessionId={$sessionId}\n\n");
 
-          // Инициализация.
+          // Инициализация (JSON-RPC ответ).
+          $initResponse = [
+            'jsonrpc' => '2.0',
+            'id' => 'init-1',
+            'result' => [
+              'protocolVersion' => '2024-11-05',
+              'capabilities' => ['tools' => ['listChanged' => TRUE]],
+              'serverInfo' => ['name' => 'Politsin MCP Server', 'version' => '1.0.0'],
+            ],
+          ];
           $stream->write("event: message\n");
-          $stream->write("data: {\"type\":\"initialize\",\"protocolVersion\":\"2025-06-18\"}\n\n");
+          $stream->write("data: " . json_encode($initResponse, JSON_UNESCAPED_UNICODE) . "\n\n");
 
-          // Формируем список tools для манифеста.
+          // Формируем список tools.
           $toolsOut = [];
           foreach (array_keys($this->config->tools) as $toolName) {
             $toolsOut[] = [
@@ -442,41 +451,18 @@ final class ReactMcpServer {
             ];
           }
 
-          // Манифест в разных форматах для совместимости.
-          $manifest = [
-            'protocolVersion' => '2025-06-18',
-            'serverInfo' => ['name' => 'Politsin MCP Server', 'version' => '1.0.0'],
-            'capabilities' => [
-              'tools' => new \stdClass(),
-              'prompts' => new \stdClass(),
-              'resources' => new \stdClass(),
-            ],
-            'endpoints' => ['messages' => 'sse', 'requests' => 'mcp/requests'],
-            'tools' => $toolsOut,
-          ];
-          $manifestJson = json_encode(['manifest' => $manifest], JSON_UNESCAPED_UNICODE);
-          $manifestTypedJson = json_encode(['type' => 'manifest', 'manifest' => $manifest], JSON_UNESCAPED_UNICODE);
-
-          // Манифест без event: (как в эталоне).
-          $stream->write("data: {$manifestJson}\n\n");
-
-          // Манифест с event: message.
-          $stream->write("event: message\n");
-          $stream->write("data: {$manifestTypedJson}\n\n");
-
-          // Манифест с event: manifest.
-          $stream->write("event: manifest\n");
-          $stream->write("data: {$manifestJson}\n\n");
-
-          // Bootstrap запрос tools/list.
-          $toolsListRequest = [
+          // Tools/list ответ (JSON-RPC).
+          $toolsListResponse = [
             'jsonrpc' => '2.0',
-            'id' => 'bootstrap',
-            'method' => 'tools/list',
+            'id' => 'tool-list-1',
+            'result' => ['tools' => $toolsOut],
           ];
-          $toolsListJson = json_encode($toolsListRequest, JSON_UNESCAPED_UNICODE);
           $stream->write("event: message\n");
-          $stream->write("data: {\"type\":\"request\",\"request\":{$toolsListJson}}\n\n");
+          $stream->write("data: " . json_encode($toolsListResponse, JSON_UNESCAPED_UNICODE) . "\n\n");
+
+          // Дублируем tools/list ответ (как в demo-day).
+          $stream->write("event: message\n");
+          $stream->write("data: " . json_encode($toolsListResponse, JSON_UNESCAPED_UNICODE) . "\n\n");
         });
 
         // Простой keep-alive каждые 30 секунд.
@@ -560,7 +546,7 @@ final class ReactMcpServer {
               'jsonrpc' => '2.0',
               'id' => $id,
               'result' => [
-                'protocolVersion' => '2025-06-18',
+                'protocolVersion' => '2024-11-05',
                 'capabilities' => ['tools' => ['listChanged' => TRUE]],
                 'serverInfo' => ['name' => 'Politsin MCP Server', 'version' => '1.0.0'],
               ],
@@ -586,6 +572,15 @@ final class ReactMcpServer {
               'jsonrpc' => '2.0',
               'id' => $id,
               'result' => ['tools' => $toolsOut],
+            ];
+            $stream->write("data: " . json_encode($response, JSON_UNESCAPED_UNICODE) . "\n\n");
+          }
+          elseif ($rpcMethod === 'notifications/initialized') {
+            // Отправляем пустой ответ для notifications/initialized.
+            $response = [
+              'jsonrpc' => '2.0',
+              'id' => $id,
+              'result' => new \stdClass(),
             ];
             $stream->write("data: " . json_encode($response, JSON_UNESCAPED_UNICODE) . "\n\n");
           }
