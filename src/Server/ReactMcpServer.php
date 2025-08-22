@@ -790,7 +790,32 @@ final class ReactMcpServer {
             $name = (string) ($paramsIn['name'] ?? ($paramsIn['tool'] ?? ''));
             $arguments = isset($paramsIn['arguments']) && is_array($paramsIn['arguments']) ? $paramsIn['arguments'] : [];
 
-            if ($name === '' || !isset($this->config->tools[$name])) {
+            // Разрешаем тулзу по имени getName(), по FQCN или по ключу конфига.
+            $toolDef = $this->config->tools[$name] ?? NULL;
+            if ($toolDef === NULL) {
+              foreach ($this->config->tools as $key => $def) {
+                if (is_object($def) && $def instanceof ToolInterface && ($def->getName() === $name || get_class($def) === $name)) {
+                  $toolDef = $def;
+                  break;
+                }
+                if (is_string($def) && class_exists($def) && is_subclass_of($def, ToolInterface::class)) {
+                  try {
+                    $inst = new $def();
+                    if ($inst->getName() === $name || $def === $name) {
+                      $toolDef = $inst;
+                      break;
+                    }
+                  }
+                  catch (\Throwable $e) {}
+                }
+                if (is_string($key) && $key === $name) {
+                  $toolDef = $def;
+                  break;
+                }
+              }
+            }
+
+            if ($name === '' || $toolDef === NULL) {
               $response = [
                 'jsonrpc' => '2.0',
                 'id' => $id,
@@ -802,16 +827,15 @@ final class ReactMcpServer {
             }
             else {
               try {
-                $def = $this->config->tools[$name];
-                if (is_object($def) && $def instanceof ToolInterface) {
-                  $resultVal = $def->execute($arguments);
+                if (is_object($toolDef) && $toolDef instanceof ToolInterface) {
+                  $resultVal = $toolDef->execute($arguments);
                 }
-                elseif (is_string($def) && class_exists($def) && is_subclass_of($def, ToolInterface::class)) {
-                  $inst = new $def();
+                elseif (is_string($toolDef) && class_exists($toolDef) && is_subclass_of($toolDef, ToolInterface::class)) {
+                  $inst = new $toolDef();
                   $resultVal = $inst->execute($arguments);
                 }
                 else {
-                  $callable = $def;
+                  $callable = $toolDef;
                   $resultVal = empty($arguments) ? $callable() : $callable($arguments);
                 }
                 $resultJson = json_encode($resultVal, JSON_UNESCAPED_UNICODE | JSON_PRETTY_PRINT);
