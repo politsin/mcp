@@ -419,84 +419,14 @@ final class ReactMcpServer {
 
         // Отправляем начальные кадры в futureTick.
         Loop::futureTick(function () use ($stream, $sessionId) {
-          // Рекомендуем интервал реконнекта.
-          $stream->write("retry: 3000\n");
-
-          // Отправляем endpoint с sessionId.
-          $stream->write("event: endpoint\n");
-          $stream->write("data: /mcp/sse/message?sessionId={$sessionId}\n\n");
-
-          // Инициализация.
-          $stream->write("event: message\n");
-          $stream->write("data: {\"type\":\"initialize\",\"protocolVersion\":\"2025-06-18\"}\n\n");
-
-          // Padding для раннего флаша (небольшой).
-          for ($i = 0; $i < 5; $i++) {
-            $stream->write(": padding " . str_repeat('x', 20) . "\n");
-          }
-          $stream->write("\n");
-
-          // Формируем список tools для манифеста.
-          $toolsOut = [];
-          foreach (array_keys($this->config->tools) as $toolName) {
-            $toolsOut[] = [
-              'name' => $toolName,
-              'description' => 'Tool ' . $toolName,
-              'inputSchema' => [
-                'type' => 'object',
-                'properties' => [],
-                'required' => [],
-                'additionalProperties' => FALSE,
-              ],
-            ];
-          }
-          // Манифест в разных форматах для совместимости.
-          $manifest = [
-            'protocolVersion' => '2025-06-18',
-            'serverInfo' => ['name' => 'Politsin MCP Server', 'version' => '1.0.0'],
-            'capabilities' => [
-              'tools' => new \stdClass(),
-              'prompts' => new \stdClass(),
-              'resources' => new \stdClass(),
-            ],
-            'endpoints' => ['messages' => 'sse', 'requests' => 'mcp/requests'],
-            'tools' => $toolsOut,
-          ];
-          $manifestJson = json_encode(['manifest' => $manifest], JSON_UNESCAPED_UNICODE);
-          $manifestTypedJson = json_encode(['type' => 'manifest', 'manifest' => $manifest], JSON_UNESCAPED_UNICODE);
-
-          $stream->write("event: message\n");
-          $stream->write("data: {$manifestJson}\n\n");
-          $stream->write("event: message\n");
-          $stream->write("data: {$manifestTypedJson}\n\n");
-          $stream->write("event: manifest\n");
-          $stream->write("data: {$manifestJson}\n\n");
-
-          // Bootstrap запрос tools/list.
-          $toolsListRequest = [
-            'jsonrpc' => '2.0',
-            'id' => 'bootstrap',
-            'method' => 'tools/list',
-          ];
-          $toolsListJson = json_encode($toolsListRequest, JSON_UNESCAPED_UNICODE);
-          $stream->write("event: message\n");
-          $stream->write("data: {\"type\":\"request\",\"request\":{$toolsListJson}}\n\n");
+          // Отправляем endpoint с sessionId (без event:).
+          $stream->write("data: /sse/message?sessionId={$sessionId}\n\n");
         });
 
-        // Ранние keep-alive каждую секунду первые 10 секунд.
-        $earlyTimer = Loop::addPeriodicTimer(1.0, function () use ($stream) {
+        // Простой keep-alive каждые 30 секунд.
+        $timer = Loop::addPeriodicTimer(30.0, function () use ($stream) {
           if ($stream->isWritable()) {
-            $stream->write(": keep-alive\n\n");
-          }
-        });
-        Loop::addTimer(10.0, function () use ($earlyTimer) {
-          Loop::cancelTimer($earlyTimer);
-        });
-
-        // Периодические пинги каждые 10 секунд.
-        $timer = Loop::addPeriodicTimer(10.0, function () use ($stream) {
-          if ($stream->isWritable()) {
-            $stream->write(": ping " . date('c') . "\n\n");
+            $stream->write(": ping\n\n");
           }
         });
 
@@ -509,10 +439,8 @@ final class ReactMcpServer {
         });
 
         // Очистка при закрытии соединения.
-        $stream->on('close', function () use ($timer, $earlyTimer, $heartbeatTimer) {
+        $stream->on('close', function () use ($timer) {
           Loop::cancelTimer($timer);
-          Loop::cancelTimer($earlyTimer);
-          Loop::cancelTimer($heartbeatTimer);
         });
 
                 $headers = [
