@@ -77,7 +77,10 @@ final class TestPage {
       </div>
     </div>
     <div class="card">
-      <div class="section-title">Лог</div>
+      <div class="row">
+        <div class="section-title">Лог</div>
+        <button id="clearLog" style="margin-left: auto;">Очистить лог</button>
+      </div>
       <pre id="log" class="mono" style="height: 70vh;"></pre>
     </div>
   </main>
@@ -171,6 +174,12 @@ final class TestPage {
       logLine('info', 'Домен обновлен на:', domainInput.value);
       // Переподключаем SSE с новым доменом
       sseConnect();
+    });
+
+    // Обработчик очистки лога
+    document.getElementById('clearLog').addEventListener('click', function() {
+      logEl.textContent = '';
+      logLine('info', 'Лог очищен');
     });
 
     // Автоподключение SSE при загрузке
