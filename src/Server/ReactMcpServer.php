@@ -673,6 +673,13 @@ final class ReactMcpServer {
               ],
             ];
           }
+          elseif ($rpcMethod === 'ping') {
+            $response = [
+              'jsonrpc' => '2.0',
+              'id' => $id,
+              'result' => new \stdClass(),
+            ];
+          }
           elseif ($rpcMethod === 'tools/list') {
             $toolsOut = [];
             foreach (array_keys($this->config->tools) as $toolName) {
@@ -776,6 +783,13 @@ final class ReactMcpServer {
                 'capabilities' => ['tools' => ['listChanged' => TRUE]],
                 'serverInfo' => ['name' => 'Politsin MCP Server', 'version' => '1.0.0'],
               ],
+            ];
+          }
+          elseif ($rpcMethod === 'ping') {
+            $response = [
+              'jsonrpc' => '2.0',
+              'id' => $id,
+              'result' => new \stdClass(),
             ];
           }
           elseif ($rpcMethod === 'tools/list') {
