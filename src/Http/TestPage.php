@@ -144,10 +144,32 @@ final class TestPage {
       const url = buildUrl(sseUrlEl.value || '$base/sse');
       try { if (es) es.close(); } catch(e) {}
       logLine('connect', 'SSE ->', url);
+      
+      // Сначала проверяем CORS заголовки
+      fetch(url, { method: 'HEAD' })
+        .then(res => {
+          logLine('CORS-CHECK', 'Status:', res.status);
+          logLine('CORS-CHECK', 'Access-Control-Allow-Origin:', res.headers.get('Access-Control-Allow-Origin') || 'NOT SET');
+          logLine('CORS-CHECK', 'Access-Control-Allow-Credentials:', res.headers.get('Access-Control-Allow-Credentials') || 'NOT SET');
+          logLine('CORS-CHECK', 'Access-Control-Allow-Headers:', res.headers.get('Access-Control-Allow-Headers') || 'NOT SET');
+          logLine('CORS-CHECK', 'Access-Control-Allow-Methods:', res.headers.get('Access-Control-Allow-Methods') || 'NOT SET');
+          logLine('CORS-CHECK', 'Access-Control-Expose-Headers:', res.headers.get('Access-Control-Expose-Headers') || 'NOT SET');
+        })
+        .catch(e => {
+          logLine('CORS-ERROR', 'HEAD request failed:', String(e));
+        });
+      
       es = new EventSource(url, { withCredentials: true });
       es.onopen = () => logLine('evt', 'open');
       es.onmessage = (e) => logLine('msg', e.data);
-      es.onerror = (e) => logLine('err', JSON.stringify(e));
+      es.onerror = (e) => {
+        logLine('err', 'SSE Error:', JSON.stringify(e));
+        // Дополнительная диагностика CORS
+        if (e.target && e.target.readyState === EventSource.CONNECTING) {
+          logLine('CORS-ERROR', 'Connection failed - likely CORS issue');
+          logLine('CORS-ERROR', 'Check browser console for detailed CORS error');
+        }
+      };
       es.addEventListener('manifest', (e) => logLine('evt', 'manifest', e.data));
       es.addEventListener('ready', (e) => logLine('evt', 'ready', e.data));
       es.addEventListener('tools', (e) => logLine('evt', 'tools', e.data));
