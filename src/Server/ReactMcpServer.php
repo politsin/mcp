@@ -545,18 +545,65 @@ final class ReactMcpServer {
           'message_count' => ($this->sessionManager->getSession($sessionId)['data']['message_count'] ?? 0) + 1,
         ]);
 
-        // Простая обработка сообщений - возвращаем echo.
-        $response = [
-          'jsonrpc' => '2.0',
-          'id' => $payload['id'] ?? NULL,
-          'result' => [
-            'echo' => $payload,
-            'sessionId' => $sessionId,
-            'sessionData' => $this->sessionManager->getSession($sessionId),
-          ],
-        ];
+        // POST на /sse/message должен возвращать SSE поток (как demo-day).
+        $stream = new ThroughStream();
 
-        return $this->createResponse(200, ['Content-Type' => 'application/json; charset=utf-8'], json_encode($response, JSON_UNESCAPED_UNICODE));
+        // Отправляем SSE поток с обработкой сообщения.
+        Loop::futureTick(function () use ($stream, $payload, $sessionId) {
+          // Обрабатываем JSON-RPC сообщение.
+          $rpcMethod = (string) ($payload['method'] ?? '');
+          $id = $payload['id'] ?? NULL;
+
+          if ($rpcMethod === 'initialize') {
+            // Отправляем initialize response.
+            $response = [
+              'jsonrpc' => '2.0',
+              'id' => $id,
+              'result' => [
+                'protocolVersion' => '2025-06-18',
+                'capabilities' => ['tools' => ['listChanged' => TRUE]],
+                'serverInfo' => ['name' => 'Politsin MCP Server', 'version' => '1.0.0'],
+              ],
+            ];
+            $stream->write("data: " . json_encode($response, JSON_UNESCAPED_UNICODE) . "\n\n");
+          }
+          elseif ($rpcMethod === 'tools/list') {
+            // Отправляем tools/list response.
+            $toolsOut = [];
+            foreach (array_keys($this->config->tools) as $toolName) {
+              $toolsOut[] = [
+                'name' => $toolName,
+                'description' => 'Tool ' . $toolName,
+                'inputSchema' => [
+                  'type' => 'object',
+                  'properties' => [],
+                  'required' => [],
+                  'additionalProperties' => FALSE,
+                ],
+              ];
+            }
+            $response = [
+              'jsonrpc' => '2.0',
+              'id' => $id,
+              'result' => ['tools' => $toolsOut],
+            ];
+            $stream->write("data: " . json_encode($response, JSON_UNESCAPED_UNICODE) . "\n\n");
+          }
+          else {
+            // Неизвестный метод - отправляем ошибку.
+            $response = [
+              'jsonrpc' => '2.0',
+              'id' => $id,
+              'error' => [
+                'code' => -32601,
+                'message' => 'Method not found: ' . $rpcMethod,
+              ],
+            ];
+            $stream->write("data: " . json_encode($response, JSON_UNESCAPED_UNICODE) . "\n\n");
+          }
+        });
+
+        return $this->createResponse(202, ['Content-Type' => 'text/event-stream; charset=utf-8'], $stream);
       }
 
       // /mcp/sessions — статистика сессий.
