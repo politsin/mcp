@@ -59,4 +59,19 @@ final class McpConfig {
     $this->http2Enabled = $http2Enabled;
   }
 
+  /**
+   * Создаёт конфигурацию с именованными параметрами.
+   */
+  public static function create(array $options = []): self {
+    return new self(
+      $options['tools'] ?? [],
+      $options['resources'] ?? [],
+      $options['authCallback'] ?? NULL,
+      $options['basePath'] ?? '/mcp',
+      $options['logFile'] ?? NULL,
+      $options['logLevel'] ?? 'info',
+      $options['http2Enabled'] ?? FALSE
+    );
+  }
+
 }
