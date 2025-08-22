@@ -606,6 +606,82 @@ final class ReactMcpServer {
         return $this->createResponse(202, ['Content-Type' => 'text/event-stream; charset=utf-8'], $stream);
       }
 
+      // /mcp/requests — HTTP JSON-RPC endpoint (как в манифесте).
+      if ($method === 'POST' && $path === $base . '/requests') {
+        $raw = (string) $request->getBody();
+        $payload = json_decode($raw, TRUE);
+
+        if ($this->config->logLevel === 'debug') {
+          $this->write('[REQUESTS] payload=' . $raw);
+        }
+
+        if (!is_array($payload)) {
+          return $this->createResponse(400, ['Content-Type' => 'application/json; charset=utf-8'], json_encode(['error' => 'invalid_json'], JSON_UNESCAPED_UNICODE));
+        }
+
+        $rpcMethod = (string) ($payload['method'] ?? '');
+        $id = $payload['id'] ?? NULL;
+
+        if ($rpcMethod === 'initialize') {
+          $params = isset($payload['params']) && is_array($payload['params']) ? $payload['params'] : [];
+          $proto = (string) ($params['protocolVersion'] ?? '');
+          $client = isset($params['clientInfo']) && is_array($params['clientInfo']) ? $params['clientInfo'] : [];
+          $clientName = (string) ($client['name'] ?? '');
+          $clientVer = (string) ($client['version'] ?? '');
+
+          $this->write('[REQUESTS-INIT] ip=' . $clientIp . ' ua=' . $ua . ' protocol=' . ($proto ?: 'n/a') . ' client=' . ($clientName ?: 'n/a') . ' v=' . ($clientVer ?: 'n/a'));
+
+          $result = [
+            'jsonrpc' => '2.0',
+            'id' => $id,
+            'result' => [
+              'protocolVersion' => $proto !== '' ? $proto : '2024-11-05',
+              'serverInfo' => ['name' => 'Politsin MCP Server', 'version' => '1.0.0'],
+              'capabilities' => [
+                'tools' => new \stdClass(),
+                'prompts' => new \stdClass(),
+                'resources' => new \stdClass(),
+              ],
+              'session' => ['id' => 'http-session'],
+              'endpoints' => ['messages' => 'sse', 'requests' => 'mcp/requests'],
+            ],
+          ];
+          return $this->createResponse(200, ['Content-Type' => 'application/json; charset=utf-8'], json_encode($result, JSON_UNESCAPED_UNICODE));
+        }
+        elseif ($rpcMethod === 'tools/list') {
+          $toolsOut = [];
+          foreach (array_keys($this->config->tools) as $toolName) {
+            $toolsOut[] = [
+              'name' => $toolName,
+              'description' => 'Tool ' . $toolName,
+              'inputSchema' => [
+                'type' => 'object',
+                'properties' => [],
+                'required' => [],
+                'additionalProperties' => FALSE,
+              ],
+            ];
+          }
+          $response = [
+            'jsonrpc' => '2.0',
+            'id' => $id,
+            'result' => ['tools' => $toolsOut],
+          ];
+          return $this->createResponse(200, ['Content-Type' => 'application/json; charset=utf-8'], json_encode($response, JSON_UNESCAPED_UNICODE));
+        }
+        else {
+          $response = [
+            'jsonrpc' => '2.0',
+            'id' => $id,
+            'error' => [
+              'code' => -32601,
+              'message' => 'Method not found: ' . $rpcMethod,
+            ],
+          ];
+          return $this->createResponse(200, ['Content-Type' => 'application/json; charset=utf-8'], json_encode($response, JSON_UNESCAPED_UNICODE));
+        }
+      }
+
       // /mcp/sessions — статистика сессий.
       if ($method === 'GET' && $path === $base . '/sessions') {
         $stats = $this->sessionManager->getSessionStats();
