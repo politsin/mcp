@@ -4,10 +4,13 @@ declare(strict_types=1);
 
 namespace Examples\Controller;
 
-use Symfony\Component\HttpFoundation\Response;
 use Symfony\Component\HttpFoundation\Request;
+use Symfony\Component\HttpFoundation\Response;
 use Symfony\Component\Routing\Annotation\Route;
 
+/**
+ *
+ */
 final class SseTestController {
 
   /**
@@ -29,6 +32,5 @@ final class SseTestController {
       . '</script>';
     return new Response($html, 200, ['Content-Type' => 'text/html; charset=utf-8']);
   }
+
 }
-
-

@@ -55,11 +55,11 @@ class McpController extends AbstractController
     public function listTools(): JsonResponse
     {
         $response = $this->mcpClient->listTools();
-        
+
         if ($response->isSuccess()) {
             return $this->json($response->getResult());
         }
-        
+
         return $this->json([
             'error' => $response->getError(),
         ], 400);
@@ -73,11 +73,11 @@ class McpController extends AbstractController
         $arguments = $data['arguments'] ?? [];
 
         $response = $this->mcpClient->callTool($toolName, $arguments);
-        
+
         if ($response->isSuccess()) {
             return $this->json($response->getResult());
         }
-        
+
         return $this->json([
             'error' => $response->getError(),
         ], 400);
@@ -120,7 +120,7 @@ $client = McpClientFactory::createHttpClient('https://your-mcp-server.com');
 
 try {
     $response = $client->callTool('unknown_tool');
-    
+
     if (!$response->isSuccess()) {
         echo "Ошибка: " . $response->getErrorMessage() . "\n";
         echo "Код: " . $response->getErrorCode() . "\n";

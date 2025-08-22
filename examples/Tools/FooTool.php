@@ -6,9 +6,28 @@ namespace Examples\Tools;
 
 use Politsin\Mcp\Tool\ToolInterface;
 
+/**
+ *
+ */
 final class FooTool implements ToolInterface {
-  public function getName(): string { return 'foo'; }
-  public function getDescription(): string { return 'Return "bar" or 2*n if numeric argument provided.'; }
+
+  /**
+   *
+   */
+  public function getName(): string {
+    return 'foo';
+  }
+
+  /**
+   *
+   */
+  public function getDescription(): string {
+    return 'Return "bar" or 2*n if numeric argument provided.';
+  }
+
+  /**
+   *
+   */
   public function getInputSchema(): array {
     return [
       'type' => 'object',
@@ -17,6 +36,10 @@ final class FooTool implements ToolInterface {
       'additionalProperties' => FALSE,
     ];
   }
+
+  /**
+   *
+   */
   public function execute(array $arguments): string {
     if (isset($arguments['n']) && is_numeric($arguments['n'])) {
       $n = (float) $arguments['n'];
@@ -25,6 +48,5 @@ final class FooTool implements ToolInterface {
     }
     return 'bar';
   }
+
 }
-
-

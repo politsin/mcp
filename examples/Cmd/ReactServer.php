@@ -7,10 +7,28 @@ use Politsin\Mcp\Server\ReactMcpServer;
 use Politsin\Mcp\Tool\ToolInterface;
 use React\EventLoop\Loop;
 
-// Minimal example Foo tool.
+/**
+ * Minimal example Foo tool.
+ */
 final class FooTool implements ToolInterface {
-  public function getName(): string { return 'foo'; }
-  public function getDescription(): string { return 'Return "bar" or 2*n if numeric argument provided.'; }
+
+  /**
+   *
+   */
+  public function getName(): string {
+    return 'foo';
+  }
+
+  /**
+   *
+   */
+  public function getDescription(): string {
+    return 'Return "bar" or 2*n if numeric argument provided.';
+  }
+
+  /**
+   *
+   */
   public function getInputSchema(): array {
     return [
       'type' => 'object',
@@ -19,6 +37,10 @@ final class FooTool implements ToolInterface {
       'additionalProperties' => FALSE,
     ];
   }
+
+  /**
+   *
+   */
   public function execute(array $arguments): string {
     if (isset($arguments['n']) && is_numeric($arguments['n'])) {
       $n = (float) $arguments['n'];
@@ -27,6 +49,7 @@ final class FooTool implements ToolInterface {
     }
     return 'bar';
   }
+
 }
 
 // Configure and run server.
@@ -35,7 +58,7 @@ $config = McpConfig::create([
   'tools' => [FooTool::class],
   // Example resources.
   'resources' => [
-    'hello_world' => 'Hello, World!'
+    'hello_world' => 'Hello, World!',
   ],
   'basePath' => '/mcp',
   'logFile' => __DIR__ . '/../../var/mcp-react-example.log',
@@ -53,5 +76,3 @@ $server = new ReactMcpServer($config);
 $server->listenUnixSocket('/tmp/mcp-react-example.sock');
 // $server->listenTcp('0.0.0.0', 8090);
 Loop::run();
-
-
