@@ -521,39 +521,9 @@ final class ReactMcpServer {
 
               // /mcp/sse — улучшенный SSE стрим с полной MCP совместимостью.
       if ($method === 'GET' && $path === $base . '/sse') {
-        // Контент-негациация: если клиент просит JSON, возвращаем манифест.
-        $acceptHeader = $request->getHeaderLine('Accept');
-        $acceptLower = is_string($acceptHeader) ? strtolower($acceptHeader) : '';
-        if ($acceptLower !== '' && str_contains($acceptLower, 'application/json')) {
-          // Формируем список tools для манифеста.
-          $toolsOut = [];
-          foreach (array_keys($this->config->tools) as $toolName) {
-            $toolsOut[] = [
-              'name' => $toolName,
-              'description' => 'Tool ' . $toolName,
-              'inputSchema' => [
-                'type' => 'object',
-                'properties' => [],
-                'required' => [],
-                'additionalProperties' => FALSE,
-              ],
-            ];
-          }
-
-          $manifest = [
-            'protocolVersion' => '2025-06-18',
-            'serverInfo' => ['name' => 'Politsin MCP Server', 'version' => '1.0.0'],
-            'capabilities' => [
-              'tools' => new \stdClass(),
-              'prompts' => new \stdClass(),
-              'resources' => new \stdClass(),
-            ],
-            'endpoints' => ['messages' => 'sse', 'requests' => 'mcp/requests'],
-            'tools' => $toolsOut,
-          ];
-          $body = json_encode($manifest, JSON_UNESCAPED_UNICODE);
-          return $this->createResponse(200, ['Content-Type' => 'application/json; charset=utf-8'], $body);
-        }
+        // ИСПРАВЛЕНИЕ: Игнорируем Accept заголовок и всегда возвращаем SSE поток
+        // как это делает демо-сервер. Клиент ChatMCP отправляет application/json,
+        // но ожидает SSE поток.
 
         $stream = new ThroughStream();
 
