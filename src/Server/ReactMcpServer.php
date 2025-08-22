@@ -74,7 +74,7 @@ final class ReactMcpServer {
       'Access-Control-Allow-Headers' => 'Content-Type, mcp-session-id, mcp-protocol-version',
       'Access-Control-Allow-Methods' => 'GET, POST, OPTIONS',
       'Access-Control-Expose-Headers' => 'mcp-session-id',
-      'Access-Control-Max-Age' => '86400',
+      'Access-Control-Max-Age' => '0',
     ];
 
     return new ReactResponse($statusCode, [...$cors, ...$headers], $body);
