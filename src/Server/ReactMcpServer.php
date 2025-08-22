@@ -78,13 +78,13 @@ final class ReactMcpServer {
    * Создает ответ с максимально разрешающими CORS заголовками для всех запросов.
    */
   private function createResponse(int $statusCode, array $headers = [], $body = ''): ReactResponse {
-    // Максимально разрешающие CORS заголовки - разрешаем ВСЁ.
+    // CORS заголовки как в демо-сервере.
     $cors = [
       'Access-Control-Allow-Origin' => '*',
-      'Access-Control-Allow-Methods' => '*',
-      'Access-Control-Allow-Headers' => '*',
+      'Access-Control-Allow-Methods' => 'GET, POST, OPTIONS',
+      'Access-Control-Allow-Headers' => 'Content-Type, mcp-session-id, mcp-protocol-version',
       'Access-Control-Allow-Credentials' => 'false',
-      'Access-Control-Expose-Headers' => '*',
+      'Access-Control-Expose-Headers' => 'mcp-session-id',
       'Access-Control-Max-Age' => '86400',
     ];
 
@@ -120,10 +120,10 @@ final class ReactMcpServer {
         // Получаем Origin для preflight запросов.
         $originHeader = $request->getHeaderLine('Origin');
 
-                // Preflight OPTIONS - отвечаем на ВСЕ OPTIONS запросы с максимальными разрешениями.
+                // Preflight OPTIONS - отвечаем как демо-сервер.
       if ($method === 'OPTIONS') {
-        // Разрешаем абсолютно всё что запрашивается.
-        return $this->createResponse(204, []);
+        // Возвращаем 200 как демо-сервер для OPTIONS /sse.
+        return $this->createResponse(200, []);
       }
 
         // Логи запросов при info/debug.
