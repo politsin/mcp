@@ -524,7 +524,6 @@ final class ReactMcpServer {
         // ИСПРАВЛЕНИЕ: Игнорируем Accept заголовок и всегда возвращаем SSE поток
         // как это делает демо-сервер. Клиент ChatMCP отправляет application/json,
         // но ожидает SSE поток.
-
         $stream = new ThroughStream();
 
         // Генерируем session ID.
@@ -544,16 +543,16 @@ final class ReactMcpServer {
 
         // Отправляем endpoint и инициализационные сообщения, как в demo-day.
         Loop::futureTick(function () use ($stream, $sessionId) {
-          // Отправляем endpoint с sessionId (как в demo-day).
+          // Отправляем endpoint с sessionId.
           $stream->write("event: endpoint\n");
-          $stream->write("data: /message?sessionId={$sessionId}\n\n");
+          $stream->write("data: /mcp/sse/message?sessionId={$sessionId}\n\n");
 
-          // Отправляем инициализационное сообщение (как в demo-day).
+          // Отправляем инициализационное сообщение.
           $initMessage = [
             'jsonrpc' => '2.0',
-            'id' => 0,
+            'id' => 'init-1',
             'result' => [
-              'protocolVersion' => '2025-06-18',
+              'protocolVersion' => '2024-11-05',
               'capabilities' => ['tools' => ['listChanged' => TRUE]],
               'serverInfo' => ['name' => 'Politsin MCP Server', 'version' => '1.0.0'],
             ],
@@ -619,8 +618,8 @@ final class ReactMcpServer {
                 return $this->createResponse(200, $headers, $stream);
       }
 
-        // /mcp/sse/message, /sse/message и /message — обработка POST сообщений для существующих сессий.
-      if ($method === 'POST' && (str_starts_with($path, $base . '/sse/message') || $path === '/sse/message' || $path === '/message')) {
+        // /mcp/sse/message и /sse/message — обработка POST сообщений для существующих сессий.
+      if ($method === 'POST' && (str_starts_with($path, $base . '/sse/message') || $path === '/sse/message')) {
         $query = $request->getUri()->getQuery();
         $params = [];
         if ($query !== '') {
@@ -665,7 +664,7 @@ final class ReactMcpServer {
               'jsonrpc' => '2.0',
               'id' => $id,
               'result' => [
-                'protocolVersion' => '2025-06-18',
+                'protocolVersion' => '2024-11-05',
                 'capabilities' => ['tools' => ['listChanged' => TRUE]],
                 'serverInfo' => ['name' => 'Politsin MCP Server', 'version' => '1.0.0'],
               ],
