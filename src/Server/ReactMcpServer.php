@@ -86,7 +86,18 @@ final class ReactMcpServer {
       'Access-Control-Max-Age' => '0',
     ];
 
-    return new ReactResponse($statusCode, [...$cors, ...$headers], $body);
+    $allHeaders = [...$cors, ...$headers];
+
+    // Логируем все заголовки ответа.
+    if ($this->config->logLevel === 'debug' || $this->config->logLevel === 'info') {
+      $headerLog = [];
+      foreach ($allHeaders as $name => $value) {
+        $headerLog[] = "{$name}: {$value}";
+      }
+      $this->write('[RESP-HEADERS] ' . implode(' | ', $headerLog));
+    }
+
+    return new ReactResponse($statusCode, $allHeaders, $body);
   }
 
   /**
