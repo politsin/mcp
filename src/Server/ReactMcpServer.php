@@ -383,11 +383,11 @@ final class ReactMcpServer {
               $toolDef = $this->config->tools[$name] ?? NULL;
               if ($toolDef === NULL) {
                 foreach ($this->config->tools as $key => $def) {
-                  if (is_object($def) && $def instanceof \Politsin\Mcp\Tool\ToolInterface && $def->getName() === $name) {
+                  if (is_object($def) && $def instanceof ToolInterface && $def->getName() === $name) {
                     $toolDef = $def;
                     break;
                   }
-                  if (is_string($def) && class_exists($def) && is_subclass_of($def, \Politsin\Mcp\Tool\ToolInterface::class)) {
+                  if (is_string($def) && class_exists($def) && is_subclass_of($def, ToolInterface::class)) {
                     try {
                       $inst = new $def();
                       if ($inst->getName() === $name) {
@@ -395,7 +395,8 @@ final class ReactMcpServer {
                         break;
                       }
                     }
-                    catch (\Throwable $e) {}
+                    catch (\Throwable $e) {
+                    }
                   }
                 }
               }
@@ -413,10 +414,10 @@ final class ReactMcpServer {
               }
               else {
                 try {
-                  if (is_object($toolDef) && $toolDef instanceof \Politsin\Mcp\Tool\ToolInterface) {
+                  if (is_object($toolDef) && $toolDef instanceof ToolInterface) {
                     $resultVal = $toolDef->execute($arguments);
                   }
-                  elseif (is_string($toolDef) && class_exists($toolDef) && is_subclass_of($toolDef, \Politsin\Mcp\Tool\ToolInterface::class)) {
+                  elseif (is_string($toolDef) && class_exists($toolDef) && is_subclass_of($toolDef, ToolInterface::class)) {
                     $inst = new $toolDef();
                     $resultVal = $inst->execute($arguments);
                   }
@@ -746,7 +747,7 @@ final class ReactMcpServer {
           elseif ($rpcMethod === 'tools/list') {
             $toolsOut = [];
             foreach ($this->config->tools as $key => $def) {
-              $toolName = is_string($key) ? $key : (is_object($def) && $def instanceof \Politsin\Mcp\Tool\ToolInterface ? $def->getName() : (is_string($def) ? (class_exists($def) && is_subclass_of($def, \Politsin\Mcp\Tool\ToolInterface::class) ? (new $def())->getName() : $def) : ''));
+              $toolName = is_string($key) ? $key : (is_object($def) && $def instanceof ToolInterface ? $def->getName() : (is_string($def) ? (class_exists($def) && is_subclass_of($def, ToolInterface::class) ? (new $def())->getName() : $def) : ''));
               $desc = 'Tool ' . (string) $toolName;
               $schema = [
                 'type' => 'object',
@@ -754,17 +755,18 @@ final class ReactMcpServer {
                 'required' => [],
                 'additionalProperties' => FALSE,
               ];
-              if (is_object($def) && $def instanceof \Politsin\Mcp\Tool\ToolInterface) {
+              if (is_object($def) && $def instanceof ToolInterface) {
                 $desc = $def->getDescription();
                 $schema = $def->getInputSchema();
               }
-              elseif (is_string($def) && class_exists($def) && is_subclass_of($def, \Politsin\Mcp\Tool\ToolInterface::class)) {
+              elseif (is_string($def) && class_exists($def) && is_subclass_of($def, ToolInterface::class)) {
                 try {
                   $inst = new $def();
                   $desc = $inst->getDescription();
                   $schema = $inst->getInputSchema();
                 }
-                catch (\Throwable $e) {}
+                catch (\Throwable $e) {
+                }
               }
               $toolsOut[] = [
                 'name' => (string) $toolName,
