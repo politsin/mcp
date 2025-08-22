@@ -71,22 +71,11 @@ final class ReactMcpServer {
   private function createResponse(int $statusCode, array $headers = [], $body = ''): ReactResponse {
     $cors = [
       'Access-Control-Allow-Origin' => '*',
-      'Access-Control-Allow-Credentials' => 'false',
       'Access-Control-Allow-Headers' => 'Content-Type, mcp-session-id, mcp-protocol-version',
       'Access-Control-Allow-Methods' => 'GET, POST, OPTIONS',
       'Access-Control-Expose-Headers' => 'mcp-session-id',
       'Access-Control-Max-Age' => '86400',
-      'Vary' => 'Origin, Accept',
     ];
-
-    // HTTP/2 заголовки (если включены).
-    if ($this->config->http2Enabled) {
-      $cors['X-Content-Type-Options'] = 'nosniff';
-      $cors['X-Frame-Options'] = 'DENY';
-      $cors['X-XSS-Protection'] = '1; mode=block';
-      $cors['Strict-Transport-Security'] = 'max-age=31536000; includeSubDomains';
-      $cors['Referrer-Policy'] = 'strict-origin-when-cross-origin';
-    }
 
     return new ReactResponse($statusCode, [...$cors, ...$headers], $body);
   }
@@ -109,18 +98,17 @@ final class ReactMcpServer {
         // Получаем Origin для preflight запросов.
         $originHeader = $request->getHeaderLine('Origin');
 
-        // Preflight OPTIONS.
+                // Preflight OPTIONS.
       if ($method === 'OPTIONS') {
         $acrHeaders = $request->getHeaderLine('Access-Control-Request-Headers');
         $acrMethod = $request->getHeaderLine('Access-Control-Request-Method');
-        $headers = ['Content-Type' => 'application/json'];
+        $headers = [];
         if ($acrHeaders !== '') {
           $headers['Access-Control-Allow-Headers'] = $acrHeaders;
         }
         if ($acrMethod !== '') {
           $headers['Access-Control-Allow-Methods'] = $acrMethod;
         }
-        $headers['Access-Control-Max-Age'] = '600';
         return $this->createResponse(204, $headers);
       }
 
