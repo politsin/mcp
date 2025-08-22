@@ -39,7 +39,7 @@
   },
   "minimum-stability": "stable",
   "prefer-stable": true,
-  "version": "1.0.33",
+  "version": "1.0.34",
   "extra": {
     "branch-alias": {
       "dev-main": "1.0.x-dev"
