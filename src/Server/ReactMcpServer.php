@@ -400,7 +400,7 @@ final class ReactMcpServer {
 
             // Отправляем endpoint с sessionId.
             $stream->write("event: endpoint\n");
-            $stream->write("data: /sse/message?sessionId={$sessionId}\n\n");
+            $stream->write("data: /mcp/sse/message?sessionId={$sessionId}\n\n");
 
             // Инициализация.
             $stream->write("event: message\n");
