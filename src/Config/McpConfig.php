@@ -26,6 +26,9 @@ final class McpConfig {
 
   /** @var string */
   public string $logLevel = 'info';
+
+  /** @var bool */
+  public bool $http2Enabled = FALSE;
   // phpcs:enable
 
   /**
@@ -43,14 +46,17 @@ final class McpConfig {
    *   Путь к лог‑файлу для сообщений сервера (или NULL для отключения записи в файл).
    * @param string $logLevel
    *   Уровень логирования: 'error' | 'info' | 'debug'.
+   * @param bool $http2Enabled
+   *   Включить поддержку HTTP/2 заголовков.
    */
-  public function __construct(array $tools = [], array $resources = [], ?callable $authCallback = NULL, string $basePath = '/mcp', ?string $logFile = NULL, string $logLevel = 'info') {
+  public function __construct(array $tools = [], array $resources = [], ?callable $authCallback = NULL, string $basePath = '/mcp', ?string $logFile = NULL, string $logLevel = 'info', bool $http2Enabled = FALSE) {
     $this->tools = $tools;
     $this->resources = $resources;
     $this->authCallback = $authCallback;
     $this->basePath = $basePath;
     $this->logFile = $logFile;
     $this->logLevel = $logLevel;
+    $this->http2Enabled = $http2Enabled;
   }
 
 }

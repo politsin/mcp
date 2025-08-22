@@ -92,6 +92,15 @@ final class ReactMcpServer {
           'Vary' => 'Origin, Accept',
         ];
 
+        // HTTP/2 заголовки (если включены).
+        if ($this->config->http2Enabled) {
+          $cors['X-Content-Type-Options'] = 'nosniff';
+          $cors['X-Frame-Options'] = 'DENY';
+          $cors['X-XSS-Protection'] = '1; mode=block';
+          $cors['Strict-Transport-Security'] = 'max-age=31536000; includeSubDomains';
+          $cors['Referrer-Policy'] = 'strict-origin-when-cross-origin';
+        }
+
         // Preflight OPTIONS.
         if ($method === 'OPTIONS') {
           $acrHeaders = $request->getHeaderLine('Access-Control-Request-Headers');
