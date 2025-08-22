@@ -10,8 +10,11 @@ use Politsin\Mcp\Config\McpConfig;
  * Менеджер сессий MCP с поддержкой файлового и Redis хранилища.
  */
 final class SessionManager {
+
+  //phpcs:disable
   private McpConfig $config;
   private ?\Redis $redis = NULL;
+  //phpcs:enable
 
   public function __construct(McpConfig $config) {
     $this->config = $config;

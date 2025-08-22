@@ -570,67 +570,11 @@ final class ReactMcpServer {
           'created_at' => date('Y-m-d H:i:s'),
         ]);
 
-        // Отправляем начальные кадры в futureTick.
+        // Отправляем только endpoint, как в demo-day.
         Loop::futureTick(function () use ($stream, $sessionId) {
           // Отправляем endpoint с sessionId.
           $stream->write("event: endpoint\n");
           $stream->write("data: /mcp/sse/message?sessionId={$sessionId}\n\n");
-
-          // Инициализация (тип initialize).
-          $initMessage = [
-            'type' => 'initialize',
-            'protocolVersion' => '2024-11-05',
-          ];
-          $stream->write("event: message\n");
-          $stream->write("data: " . json_encode($initMessage, JSON_UNESCAPED_UNICODE) . "\n\n");
-
-          // Формируем список tools.
-          $toolsOut = [];
-          foreach (array_keys($this->config->tools) as $toolName) {
-            $toolsOut[] = [
-              'name' => $toolName,
-              'description' => 'Tool ' . $toolName,
-              'inputSchema' => [
-                'type' => 'object',
-                'properties' => [],
-                'required' => [],
-                'additionalProperties' => FALSE,
-              ],
-            ];
-          }
-
-          // Манифест.
-          $manifest = [
-            'protocolVersion' => '2024-11-05',
-            'capabilities' => ['tools' => ['listChanged' => TRUE]],
-            'serverInfo' => ['name' => 'Politsin MCP Server', 'version' => '1.0.0'],
-            'endpoints' => ['messages' => 'sse', 'requests' => 'mcp/requests'],
-            'tools' => $toolsOut,
-          ];
-
-          // Манифест в формате data.
-          $stream->write("event: message\n");
-          $stream->write("data: " . json_encode(['manifest' => $manifest], JSON_UNESCAPED_UNICODE) . "\n\n");
-
-          // Манифест в формате type=manifest.
-          $stream->write("event: message\n");
-          $stream->write("data: " . json_encode(['type' => 'manifest', 'manifest' => $manifest], JSON_UNESCAPED_UNICODE) . "\n\n");
-
-          // Манифест в формате event: manifest.
-          $stream->write("event: manifest\n");
-          $stream->write("data: " . json_encode(['manifest' => $manifest], JSON_UNESCAPED_UNICODE) . "\n\n");
-
-          // Bootstrap запрос tools/list.
-          $bootstrapRequest = [
-            'type' => 'request',
-            'request' => [
-              'jsonrpc' => '2.0',
-              'id' => 'bootstrap',
-              'method' => 'tools/list',
-            ],
-          ];
-          $stream->write("event: message\n");
-          $stream->write("data: " . json_encode($bootstrapRequest, JSON_UNESCAPED_UNICODE) . "\n\n");
         });
 
         // Простой keep-alive каждые 30 секунд.
