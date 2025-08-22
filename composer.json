@@ -16,6 +16,10 @@
   "require-dev": {
     "phpunit/phpunit": "^11"
   },
+  "scripts": {
+    "test": "phpunit",
+    "test:coverage": "phpunit --coverage-html coverage"
+  },
   "autoload": {
     "psr-4": {
       "Politsin\\Mcp\\": "src/"
@@ -35,9 +39,10 @@
   },
   "minimum-stability": "stable",
   "prefer-stable": true,
+  "version": "1.0.0",
   "extra": {
     "branch-alias": {
-      "dev-main": "0.1.x-dev"
+      "dev-main": "1.0.x-dev"
     }
   }
 }

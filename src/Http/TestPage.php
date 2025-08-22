@@ -12,8 +12,9 @@ final class TestPage {
   /**
    * Возвращает HTML-страницу теста SSE/MCP для браузера.
    */
-  public function render(string $basePath = '/mcp'): string {
+  public function render(string $basePath = '/mcp', ?string $domain = NULL): string {
     $base = rtrim($basePath, '/');
+    $domain = $domain ?: 'politsin.ru';
     $html = <<<HTML
 <!doctype html>
 <meta charset="utf-8">
@@ -48,6 +49,11 @@ final class TestPage {
       <div class="badge mono">MCP/SSE Test <span class="ok">v0.1.22</span></div>
       <div class="muted">Базовый путь: <span class="mono">$base</span></div>
     </div>
+    <div class="row mt8">
+      <label class="mono dim">Домен:</label>
+      <input id="domainInput" class="mono" type="text" value="$domain" style="width: 200px;" />
+      <button id="updateDomain">Обновить</button>
+    </div>
   </header>
   <main>
     <div class="grid-col">
@@ -77,8 +83,16 @@ final class TestPage {
   </main>
   <script>
     const logEl = document.getElementById('log');
+    const domainInput = document.getElementById('domainInput');
     // VERSION MARKER
     try { console.log('TEST_PAGE_VERSION v0.1.22'); } catch (e) {}
+
+    // Функция для формирования полного URL с доменом
+    function buildUrl(path) {
+      const domain = domainInput.value || '$domain';
+      const protocol = window.location.protocol;
+      return protocol + '//' + domain + path;
+    }
     function logLine(kind, ...args) {
       const line = '[' + new Date().toISOString() + '] ' + kind + ' ' + args.join(' ');
       try { console.log(line); } catch(e) {}
@@ -93,7 +107,7 @@ final class TestPage {
     const httpUrlEl = document.getElementById('httpUrl');
     let httpAbort = null;
     async function httpConnect() {
-      const url = httpUrlEl.value || '$base/http';
+      const url = buildUrl(httpUrlEl.value || '$base/http');
       logLine('connect', 'HTTP ->', url);
       try {
         httpAbort = new AbortController();
@@ -124,7 +138,7 @@ final class TestPage {
     const sseUrlEl = document.getElementById('sseUrl');
     let es = null;
     function sseConnect() {
-      const url = sseUrlEl.value || '$base/sse';
+      const url = buildUrl(sseUrlEl.value || '$base/sse');
       try { if (es) es.close(); } catch(e) {}
       logLine('connect', 'SSE ->', url);
       es = new EventSource(url, { withCredentials: true });
@@ -142,7 +156,7 @@ final class TestPage {
     // API GET
     const apiUrlEl = document.getElementById('apiUrl');
     async function apiSend() {
-      const url = apiUrlEl.value || '$base/api';
+      const url = buildUrl(apiUrlEl.value || '$base/api');
       logLine('GET', url);
       try {
         const res = await fetch(url, { method: 'GET' });
@@ -151,6 +165,13 @@ final class TestPage {
       } catch (e) { logLine('err', String(e)); }
     }
     document.getElementById('apiSend').addEventListener('click', apiSend);
+
+    // Обработчик обновления домена
+    document.getElementById('updateDomain').addEventListener('click', function() {
+      logLine('info', 'Домен обновлен на:', domainInput.value);
+      // Переподключаем SSE с новым доменом
+      sseConnect();
+    });
 
     // Автоподключение SSE при загрузке
     sseConnect();
