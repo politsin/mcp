@@ -544,16 +544,16 @@ final class ReactMcpServer {
 
         // Отправляем endpoint и инициализационные сообщения, как в demo-day.
         Loop::futureTick(function () use ($stream, $sessionId) {
-          // Отправляем endpoint с sessionId.
+          // Отправляем endpoint с sessionId (как в demo-day).
           $stream->write("event: endpoint\n");
-          $stream->write("data: /mcp/sse/message?sessionId={$sessionId}\n\n");
+          $stream->write("data: /message?sessionId={$sessionId}\n\n");
 
-          // Отправляем инициализационное сообщение.
+          // Отправляем инициализационное сообщение (как в demo-day).
           $initMessage = [
             'jsonrpc' => '2.0',
-            'id' => 'init-1',
+            'id' => 0,
             'result' => [
-              'protocolVersion' => '2024-11-05',
+              'protocolVersion' => '2025-06-18',
               'capabilities' => ['tools' => ['listChanged' => TRUE]],
               'serverInfo' => ['name' => 'Politsin MCP Server', 'version' => '1.0.0'],
             ],
@@ -619,8 +619,8 @@ final class ReactMcpServer {
                 return $this->createResponse(200, $headers, $stream);
       }
 
-        // /mcp/sse/message и /sse/message — обработка POST сообщений для существующих сессий.
-      if ($method === 'POST' && (str_starts_with($path, $base . '/sse/message') || $path === '/sse/message')) {
+        // /mcp/sse/message, /sse/message и /message — обработка POST сообщений для существующих сессий.
+      if ($method === 'POST' && (str_starts_with($path, $base . '/sse/message') || $path === '/sse/message' || $path === '/message')) {
         $query = $request->getUri()->getQuery();
         $params = [];
         if ($query !== '') {
@@ -665,7 +665,7 @@ final class ReactMcpServer {
               'jsonrpc' => '2.0',
               'id' => $id,
               'result' => [
-                'protocolVersion' => '2024-11-05',
+                'protocolVersion' => '2025-06-18',
                 'capabilities' => ['tools' => ['listChanged' => TRUE]],
                 'serverInfo' => ['name' => 'Politsin MCP Server', 'version' => '1.0.0'],
               ],
