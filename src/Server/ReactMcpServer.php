@@ -507,6 +507,39 @@ final class ReactMcpServer {
                   return new ReactResponse(200, $headers, $stream);
         }
 
+        // /mcp/sse/message — обработка POST сообщений для существующих сессий.
+        if ($method === 'POST' && str_starts_with($path, $base . '/sse/message')) {
+          $query = $request->getUri()->getQuery();
+          $params = [];
+          if ($query !== '') {
+            parse_str($query, $params);
+          }
+          $sessionId = $params['sessionId'] ?? '';
+
+          if ($sessionId === '') {
+            return new ReactResponse(400, [...$cors, 'Content-Type' => 'text/plain; charset=utf-8'], 'Missing sessionId. Expected POST to /sse to initiate new one');
+          }
+
+          $raw = (string) $request->getBody();
+          $payload = json_decode($raw, TRUE);
+
+          if ($this->config->logLevel === 'debug') {
+            $this->write('[SSE-MSG] session=' . $sessionId . ' payload=' . $raw);
+          }
+
+          // Простая обработка сообщений - возвращаем echo.
+          $response = [
+            'jsonrpc' => '2.0',
+            'id' => $payload['id'] ?? NULL,
+            'result' => [
+              'echo' => $payload,
+              'sessionId' => $sessionId,
+            ],
+          ];
+
+          return new ReactResponse(200, [...$cors, 'Content-Type' => 'application/json; charset=utf-8'], json_encode($response, JSON_UNESCAPED_UNICODE));
+        }
+
         if ($this->config->logLevel === 'debug') {
           $this->write('[RESP] 404 not_found');
         }
