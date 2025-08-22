@@ -80,13 +80,11 @@ final class ReactMcpServer {
         $clientIp = $request->getHeaderLine('X-Forwarded-For') ?: $request->getHeaderLine('X-Real-IP') ?: ($serverParams['REMOTE_ADDR'] ?? 'unknown');
         $ua = $request->getHeaderLine('User-Agent') ?: 'unknown';
 
-        // CORS headers (на все ответы) с учётом Origin.
+        // CORS headers (на все ответы) - разрешаем подключения откуда угодно.
         $originHeader = $request->getHeaderLine('Origin');
-        $allowOrigin = $originHeader !== '' ? $originHeader : '*';
-        $allowCredentials = $originHeader !== '' ? 'true' : 'false';
         $cors = [
-          'Access-Control-Allow-Origin' => $allowOrigin,
-          'Access-Control-Allow-Credentials' => $allowCredentials,
+          'Access-Control-Allow-Origin' => '*',
+          'Access-Control-Allow-Credentials' => 'false',
           'Access-Control-Allow-Headers' => 'Content-Type, Authorization, X-Requested-With, Accept, Origin, X-API-Key',
           'Access-Control-Allow-Methods' => 'GET, POST, OPTIONS',
           'Vary' => 'Origin, Accept',
