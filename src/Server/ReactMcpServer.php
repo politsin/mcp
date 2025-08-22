@@ -463,17 +463,19 @@ final class ReactMcpServer {
 
         $stream = new ThroughStream();
 
-        // Отправляем начальные сообщения.
+        // ИСПРАВЛЕНИЕ: Убираем неправильные сообщения типа {"type":"..."}.
+        // Клиент ожидает только JSON-RPC 2.0 сообщения.
+        // Отправляем только ping для keep-alive.
         Loop::futureTick(function () use ($stream) {
-          $stream->write("event: message\n");
-          $stream->write("data: {\"type\":\"stream_opened\",\"ts\":\"" . date('c') . "\"}\n\n");
+          $stream->write(": ping " . date('c') . "\n\n");
         });
 
-        // Периодические heartbeat сообщения.
+        // ИСПРАВЛЕНИЕ: Убираем неправильные heartbeat сообщения типа {"type":"..."}.
+        // Клиент ожидает только JSON-RPC 2.0 сообщения.
+        // Оставляем только ping комментарии для keep-alive.
         $timer = Loop::addPeriodicTimer(30.0, function () use ($stream) {
           if ($stream->isWritable()) {
-            $stream->write("event: message\n");
-            $stream->write("data: {\"type\":\"heartbeat\",\"ts\":\"" . date('c') . "\"}\n\n");
+            $stream->write(": ping " . date('c') . "\n\n");
           }
         });
 
@@ -584,11 +586,12 @@ final class ReactMcpServer {
           }
         });
 
-        // Heartbeat каждые 30 секунд.
+        // ИСПРАВЛЕНИЕ: Убираем неправильные heartbeat сообщения типа {"type":"..."}.
+        // Клиент ожидает только JSON-RPC 2.0 сообщения.
+        // Оставляем только ping комментарии для keep-alive.
         $heartbeatTimer = Loop::addPeriodicTimer(30.0, function () use ($stream) {
           if ($stream->isWritable()) {
-            $stream->write("event: message\n");
-            $stream->write("data: {\"type\":\"heartbeat\",\"ts\":\"" . date('c') . "\"}\n\n");
+            $stream->write(": ping " . date('c') . "\n\n");
           }
         });
 
