@@ -364,7 +364,11 @@ final class ReactMcpServer {
             $manifest = [
               'protocolVersion' => '2025-06-18',
               'serverInfo' => ['name' => 'Politsin MCP Server', 'version' => '1.0.0'],
-              'capabilities' => ['tools' => new \stdClass(), 'prompts' => new \stdClass(), 'resources' => new \stdClass()],
+              'capabilities' => [
+                'tools' => new \stdClass(),
+                'prompts' => new \stdClass(),
+                'resources' => new \stdClass(),
+              ],
               'endpoints' => ['messages' => 'sse', 'requests' => 'mcp/requests'],
               'tools' => $toolsOut,
             ];
@@ -419,7 +423,11 @@ final class ReactMcpServer {
             $manifest = [
               'protocolVersion' => '2025-06-18',
               'serverInfo' => ['name' => 'Politsin MCP Server', 'version' => '1.0.0'],
-              'capabilities' => ['tools' => new \stdClass(), 'prompts' => new \stdClass(), 'resources' => new \stdClass()],
+              'capabilities' => [
+                'tools' => new \stdClass(),
+                'prompts' => new \stdClass(),
+                'resources' => new \stdClass(),
+              ],
               'endpoints' => ['messages' => 'sse', 'requests' => 'mcp/requests'],
               'tools' => $toolsOut,
             ];
