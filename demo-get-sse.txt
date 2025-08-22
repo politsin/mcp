@@ -1,0 +1,7 @@
+URL: https://demo-day.mcp.cloudflare.com/sse
+Method: GET
+HTTP Code: 200
+Error: Operation timed out after 10002 milliseconds with 111 bytes received
+
+Response:
+

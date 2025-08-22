@@ -1,0 +1,26 @@
+URL: https://react.politsin.ru/mcp/sse
+Method: GET
+HTTP Code: 502
+
+Response:
+HTTP/2 502 
+server: nginx/1.27.1
+date: Fri, 22 Aug 2025 19:23:01 GMT
+content-type: text/html
+content-length: 559
+x-accel-buffering: no
+
+<html>
+<head><title>502 Bad Gateway</title></head>
+<body>
+<center><h1>502 Bad Gateway</h1></center>
+<hr><center>nginx/1.27.1</center>
+</body>
+</html>
+<!-- a padding to disable MSIE and Chrome friendly error page -->
+<!-- a padding to disable MSIE and Chrome friendly error page -->
+<!-- a padding to disable MSIE and Chrome friendly error page -->
+<!-- a padding to disable MSIE and Chrome friendly error page -->
+<!-- a padding to disable MSIE and Chrome friendly error page -->
+<!-- a padding to disable MSIE and Chrome friendly error page -->
+

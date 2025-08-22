@@ -1,0 +1,19 @@
+URL: https://demo-day.mcp.cloudflare.com/sse/message?sessionId=4a966a43343a3d717711452dfcc21ece23c42d8b7990c1512b6ebece69992713
+Method: POST
+HTTP Code: 202
+
+Response:
+HTTP/2 202 
+date: Fri, 22 Aug 2025 19:23:02 GMT
+content-type: text/event-stream
+content-length: 8
+cf-ray: 9734be0e0bd10716-WAW
+access-control-allow-origin: *
+cache-control: no-cache
+access-control-allow-headers: Content-Type, mcp-session-id, mcp-protocol-version
+access-control-allow-methods: GET, POST, OPTIONS
+access-control-expose-headers: mcp-session-id
+access-control-max-age: 86400
+server: cloudflare
+
+Accepted

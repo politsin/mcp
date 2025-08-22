@@ -148,15 +148,29 @@ final class ReactMcpServer {
           ];
         }
 
+        // Формируем endpoints: относительные по умолчанию, абсолютные при включённой опции.
+        $endpoints = [
+          'messages' => 'sse',
+          'requests' => 'mcp/requests',
+          'http' => 'mcp/http',
+        ];
+        if ($this->config->absoluteEndpoints) {
+          $xfProto = $request->getHeaderLine('X-Forwarded-Proto');
+          $protoOut = $this->config->endpointBaseUrl ? '' : ($xfProto !== '' ? $xfProto : ($request->getUri()->getScheme() ?: 'https'));
+          $hostOut = $this->config->endpointBaseUrl ? '' : ($request->getHeaderLine('Host') ?: $request->getUri()->getHost());
+          $baseUrl = $this->config->endpointBaseUrl ?: ($protoOut . '://' . $hostOut . $base);
+          $endpoints = [
+            'messages' => $baseUrl . '/sse',
+            'requests' => $baseUrl . '/requests',
+            'http' => $baseUrl . '/http',
+          ];
+        }
+
         $manifest = [
           'protocolVersion' => '2024-11-05',
           'serverInfo' => ['name' => 'Politsin MCP Server', 'version' => '1.0.0'],
           'capabilities' => ['tools' => ['listChanged' => TRUE]],
-          'endpoints' => [
-            'messages' => 'sse',
-            'requests' => 'mcp/requests',
-            'http' => 'mcp/http',
-          ],
+          'endpoints' => $endpoints,
           'tools' => $toolsOut,
         ];
         return $this->createResponse(200, ['Content-Type' => 'application/json; charset=utf-8'], json_encode($manifest, JSON_UNESCAPED_UNICODE));
@@ -253,6 +267,16 @@ final class ReactMcpServer {
               // Генерируем session ID.
               $sessionId = bin2hex(random_bytes(32));
 
+              // Готовим endpoints в initialize результате: относительные/абсолютные.
+              $endpointsInit = ['messages' => 'sse', 'requests' => 'mcp/requests'];
+              if ($this->config->absoluteEndpoints) {
+                $xfProto = $request->getHeaderLine('X-Forwarded-Proto');
+                $protoOut = $this->config->endpointBaseUrl ? '' : ($xfProto !== '' ? $xfProto : ($request->getUri()->getScheme() ?: 'https'));
+                $hostOut = $this->config->endpointBaseUrl ? '' : ($request->getHeaderLine('Host') ?: $request->getUri()->getHost());
+                $baseUrl = $this->config->endpointBaseUrl ?: ($protoOut . '://' . $hostOut . $base);
+                $endpointsInit = ['messages' => $baseUrl . '/sse', 'requests' => $baseUrl . '/requests'];
+              }
+
               $result = [
                 'jsonrpc' => '2.0',
                 'id' => $id,
@@ -265,6 +289,7 @@ final class ReactMcpServer {
                     'resources' => new \stdClass(),
                   ],
                   'session' => ['id' => $sessionId],
+                  'endpoints' => $endpointsInit,
                 ],
               ];
 

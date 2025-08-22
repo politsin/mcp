@@ -44,6 +44,12 @@ final class McpConfig {
 
   /** @var int */
   public int $redisDb = 0;
+
+  /** @var bool */
+  public bool $absoluteEndpoints = FALSE;
+
+  /** @var string|null */
+  public ?string $endpointBaseUrl = NULL;
   // phpcs:enable
 
   /**
@@ -73,8 +79,12 @@ final class McpConfig {
    *   Порт Redis для сессий.
    * @param int $redisDb
    *   База данных Redis для сессий.
+   * @param bool $absoluteEndpoints
+   *   Если TRUE, сервер возвращает абсолютные endpoints в манифесте/initialize.
+   * @param string|null $endpointBaseUrl
+   *   Базовый URL (например, "https://react.politsin.ru/mcp") для построения абсолютных endpoints.
    */
-  public function __construct(array $tools = [], array $resources = [], ?callable $authCallback = NULL, string $basePath = '/mcp', ?string $logFile = NULL, string $logLevel = 'info', bool $http2Enabled = FALSE, string $sessionStorage = 'file', ?string $sessionPath = NULL, ?string $redisHost = NULL, int $redisPort = 6379, int $redisDb = 0) {
+  public function __construct(array $tools = [], array $resources = [], ?callable $authCallback = NULL, string $basePath = '/mcp', ?string $logFile = NULL, string $logLevel = 'info', bool $http2Enabled = FALSE, string $sessionStorage = 'file', ?string $sessionPath = NULL, ?string $redisHost = NULL, int $redisPort = 6379, int $redisDb = 0, bool $absoluteEndpoints = FALSE, ?string $endpointBaseUrl = NULL) {
     $this->tools = $tools;
     $this->resources = $resources;
     $this->authCallback = $authCallback;
@@ -87,6 +97,8 @@ final class McpConfig {
     $this->redisHost = $redisHost;
     $this->redisPort = $redisPort;
     $this->redisDb = $redisDb;
+    $this->absoluteEndpoints = $absoluteEndpoints;
+    $this->endpointBaseUrl = $endpointBaseUrl;
   }
 
   /**
@@ -105,7 +117,9 @@ final class McpConfig {
       $options['sessionPath'] ?? NULL,
       $options['redisHost'] ?? NULL,
       $options['redisPort'] ?? 6379,
-      $options['redisDb'] ?? 0
+      $options['redisDb'] ?? 0,
+      $options['absoluteEndpoints'] ?? FALSE,
+      $options['endpointBaseUrl'] ?? NULL
     );
   }
 
