@@ -134,9 +134,37 @@ final class ReactMcpServer {
         return $this->createResponse(200, []);
       }
 
+        // Определяем наличие auth-заголовков и логируем.
+      $authHeader = $request->getHeaderLine('Authorization');
+      $xApiKeyHeader = $request->getHeaderLine('X-API-Key') ?: $request->getHeaderLine('x-api-key');
+      $hasAuth = ($authHeader !== '' || $xApiKeyHeader !== '');
+
+      $mask = function ($v) {
+        if (!is_string($v) || $v === '') {
+          return '';
+        }
+        $len = strlen($v);
+        if ($len <= 6) {
+          return str_repeat('*', $len);
+        }
+        return substr($v, 0, 4) . '...' . substr($v, -2);
+      };
+
+      $authALog = $authHeader !== '' ? $mask($authHeader) : 'none';
+      $authXLog = $xApiKeyHeader !== '' ? $mask($xApiKeyHeader) : 'none';
+
         // Логи запросов при info/debug.
       if ($this->config->logLevel === 'info' || $this->config->logLevel === 'debug') {
         $this->write(sprintf('[REQ] ip=%s ua=%s %s %s', $clientIp, $ua, $method, $path));
+        $this->write(
+          sprintf(
+            '[AUTH] %s path=%s Authorization=%s X-API-Key=%s',
+            $hasAuth ? 'authorized' : 'anonymous',
+            $path,
+            $authALog,
+            $authXLog
+          )
+        );
       }
 
         // /mcp — JSON манифест (совместимость клиентов).
@@ -655,17 +683,17 @@ final class ReactMcpServer {
         $this->sessionManager->createSession(
             $sessionId,
             [
-          'client_ip' => $clientIp,
-          'user_agent' => $ua,
-          'created_at' => date('Y-m-d H:i:s'),
+              'client_ip' => $clientIp,
+              'user_agent' => $ua,
+              'created_at' => date('Y-m-d H:i:s'),
             ]
         );
 
         // Сохраняем авторизационные заголовки в сессии для последующих вызовов.
         $authHeaders = [
-            'Authorization' => $request->getHeaderLine('Authorization'),
-            'X-API-Key' => $request->getHeaderLine('X-API-Key'),
-            'x-api-key' => $request->getHeaderLine('x-api-key'),
+          'Authorization' => $request->getHeaderLine('Authorization'),
+          'X-API-Key' => $request->getHeaderLine('X-API-Key'),
+          'x-api-key' => $request->getHeaderLine('x-api-key'),
         ];
         $filtered = array_filter(
           $authHeaders,
@@ -677,9 +705,33 @@ final class ReactMcpServer {
           $this->sessionManager->updateSession(
               $sessionId,
               [
-                  'auth_headers' => $filtered,
+                'auth_headers' => $filtered,
               ]
           );
+
+          if ($this->config->logLevel === 'info' || $this->config->logLevel === 'debug') {
+            // Повторно рассчитываем маски для вывода, чтобы не зависеть от замыканий выше.
+            $authALog = $filtered['Authorization'] ?? '';
+            $authXLog = $filtered['X-API-Key'] ?? ($filtered['x-api-key'] ?? '');
+            $mask = function ($v) {
+              if (!is_string($v) || $v === '') {
+                return '';
+              }
+              $len = strlen($v);
+              if ($len <= 6) {
+                return str_repeat('*', $len);
+              }
+              return substr($v, 0, 4) . '...' . substr($v, -2);
+            };
+            $this->write(
+              sprintf(
+                '[SSE-AUTH] session=%s Authorization=%s X-API-Key=%s',
+                $sessionId,
+                $authALog !== '' ? $mask($authALog) : 'none',
+                $authXLog !== '' ? $mask($authXLog) : 'none'
+              )
+            );
+          }
         }
 
         // Сохраняем поток для ответов по sessionId.
