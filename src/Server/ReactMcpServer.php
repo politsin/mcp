@@ -379,6 +379,22 @@ final class ReactMcpServer {
               $name = (string) ($paramsIn['name'] ?? ($paramsIn['tool'] ?? ''));
               $arguments = isset($paramsIn['arguments']) && is_array($paramsIn['arguments']) ? $paramsIn['arguments'] : [];
 
+              // Пробрасываем заголовки авторизации из HTTP запроса в arguments.
+              $authHeaders = [
+                'Authorization' => $request->getHeaderLine('Authorization'),
+                'X-API-Key' => $request->getHeaderLine('X-API-Key'),
+                'x-api-key' => $request->getHeaderLine('x-api-key'),
+              ];
+              $filtered = array_filter(
+                $authHeaders,
+                function ($v) {
+                  return is_string($v) && $v !== '';
+                }
+              );
+              if (!empty($filtered)) {
+                $arguments['_headers'] = $filtered;
+              }
+
               // Поддержка поиска тулзы по имени (getName()) и по полному имени класса,
               // а также по строковому ключу массива конфигурации.
               $toolDef = $this->config->tools[$name] ?? NULL;
@@ -636,11 +652,35 @@ final class ReactMcpServer {
         }
 
         // Создаем сессию.
-        $this->sessionManager->createSession($sessionId, [
+        $this->sessionManager->createSession(
+            $sessionId,
+            [
           'client_ip' => $clientIp,
           'user_agent' => $ua,
           'created_at' => date('Y-m-d H:i:s'),
-        ]);
+            ]
+        );
+
+        // Сохраняем авторизационные заголовки в сессии для последующих вызовов.
+        $authHeaders = [
+            'Authorization' => $request->getHeaderLine('Authorization'),
+            'X-API-Key' => $request->getHeaderLine('X-API-Key'),
+            'x-api-key' => $request->getHeaderLine('x-api-key'),
+        ];
+        $filtered = array_filter(
+          $authHeaders,
+          function ($v) {
+            return is_string($v) && $v !== '';
+          }
+        );
+        if (!empty($filtered)) {
+          $this->sessionManager->updateSession(
+              $sessionId,
+              [
+                  'auth_headers' => $filtered,
+              ]
+          );
+        }
 
         // Сохраняем поток для ответов по sessionId.
         $this->sseStreams[$sessionId] = $stream;
@@ -789,6 +829,29 @@ final class ReactMcpServer {
             $paramsIn = isset($payload['params']) && is_array($payload['params']) ? $payload['params'] : [];
             $name = (string) ($paramsIn['name'] ?? ($paramsIn['tool'] ?? ''));
             $arguments = isset($paramsIn['arguments']) && is_array($paramsIn['arguments']) ? $paramsIn['arguments'] : [];
+
+            // Подмешиваем сохранённые в сессии авторизационные заголовки.
+            $session = $this->sessionManager->getSession($sessionId);
+            $stored = is_array($session) && isset($session['data']['auth_headers']) ? $session['data']['auth_headers'] : [];
+            if (is_array($stored) && !empty($stored)) {
+              $arguments['_headers'] = $stored;
+            }
+
+            // Также учитываем заголовки непосредственно этого запроса (если проксируются).
+            $authHeaders = [
+              'Authorization' => $request->getHeaderLine('Authorization'),
+              'X-API-Key' => $request->getHeaderLine('X-API-Key'),
+              'x-api-key' => $request->getHeaderLine('x-api-key'),
+            ];
+            $filtered = array_filter(
+              $authHeaders,
+              function ($v) {
+                return is_string($v) && $v !== '';
+              }
+            );
+            if (!empty($filtered)) {
+              $arguments['_headers'] = $filtered;
+            }
 
             // Разрешаем тулзу по имени getName(), по FQCN или по ключу конфига.
             $toolDef = $this->config->tools[$name] ?? NULL;
